@@ -1,10 +1,10 @@
 from django.contrib import admin
 from django.urls import path, include
-from . import views
+from .views import UserListCreate, PostListCreate, CommentListCreate
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('users/', views.get_users, name='get_users'),
-    path('users/create/', views.create_user, name='create_user'),
-    path('posts/', include('posts.urls')),
+    path('users/', UserListCreate.as_view(), name='user-list-create'),
+    path('posts/', PostListCreate.as_view(), name='post-list-create'),
+    path('comments/', CommentListCreate.as_view(), name='comment-list-create'),
 ]
