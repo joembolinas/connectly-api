@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 
 class User(models.Model):
     username = models.CharField(max_length=100, unique=True)  # User's unique username
@@ -20,7 +21,17 @@ class Comment(models.Model):
     text = models.TextField()  # The text content of the comment
     author = models.ForeignKey(User, related_name='comments', on_delete=models.CASCADE)  # The user who created the comment
     post = models.ForeignKey(Post, related_name='comments', on_delete=models.CASCADE)  # The post the comment is related to
+    parent_comment = models.ForeignKey('self', null=True, blank=True, related_name='replies', on_delete=models.CASCADE)  # The parent comment for replies
     created_at = models.DateTimeField(auto_now_add=True)  # Timestamp when the comment was created
+    
+    class Meta:
+        unique_together = ['author', 'post', 'text']
 
     def __str__(self):
         return f"Comment by {self.author.username} on Post {self.post.id}"
+
+    def clean(self):
+        if self.parent_comment and self.parent_comment.post != self.post:
+            raise ValidationError("Parent comment must belong to the same post.")
+        if self.parent_comment == self:
+            raise ValidationError("A comment cannot be a reply to itself.")
