@@ -3,8 +3,8 @@ from .models import User, Post, Comment
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
-        model = User
-        fields = ['id', 'username', 'email', 'created_at']
+        model = CustomUser
+        exclude = ['password']  # Exclude sensitive fields
         
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
@@ -35,6 +35,10 @@ class CommentSerializer(serializers.ModelSerializer):
         model = Comment
         fields = ['id', 'text', 'author', 'post', 'parent_comment', 'created_at', 'replies']
 
+    def get_replies(self, obj):
+        replies = Comment.objects.filter(parent_comment=obj)
+        return CommentSerializer(replies, many=True).data
+
     def validate_post(self, value):
         if not Post.objects.filter(id=value.id).exists():
             raise serializers.ValidationError("Post not found.")
@@ -46,10 +50,6 @@ class CommentSerializer(serializers.ModelSerializer):
         return value
 
     def validate_parent_comment(self, value):
-        if value and value.post_id != self.initial_data.get('post'):
+        if value and value.post != self.initial_data.get('post'):
             raise serializers.ValidationError("Parent comment must belong to the same post.")
         return value
-    
-    def get_replies(self, obj):
-        replies = Comment.objects.filter(parent_comment=obj)
-        return CommentSerializer(replies, many=True).data

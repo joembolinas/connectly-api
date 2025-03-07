@@ -2,13 +2,17 @@ import json
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from .models import User
-from .models import Post
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import UserRateThrottle
+from ratelimit.decorators import ratelimit
 from .models import User, Post, Comment
 from .serializers import UserSerializer, PostSerializer, CommentSerializer
+from .permissions import IsAdminUser, IsRegularUser
+from posts.factory import PostFactory
 
 def get_users(request):
     try:
@@ -86,4 +90,32 @@ class CommentListCreate(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# Create your views here.
+class AdminOnlyView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        return Response({"message": "Admin-only content"})
+
+class UserView(APIView):
+    permission_classes = [IsRegularUser]
+    throttle_classes = [UserRateThrottle]
+
+    def get(self, request):
+        return Response({"message": "User-specific content"})
+
+class ProtectedView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({"message": "Authenticated!"})
+
+@ratelimit(key='user', rate='5/m', block=True)
+def my_view(request):
+    return Response({"message": "Rate-limited view"})
+
+class CreatePostView(APIView):
+    def post(self, request):
+        content = request.data.get('content')
+        post = PostFactory.create_post(request.user, content)
+        return Response({"id": post.id, "message": "Post created successfully"})

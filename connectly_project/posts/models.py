@@ -1,5 +1,13 @@
 from django.db import models
 from django.core.exceptions import ValidationError
+from django.contrib.auth.models import AbstractUser
+
+class CustomUser(AbstractUser):
+    ROLE_CHOICES = (
+        ('admin', 'Admin'),
+        ('user', 'User'),
+    )
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='user')
 
 class User(models.Model):
     username = models.CharField(max_length=100, unique=True)  # User's unique username
@@ -19,7 +27,7 @@ class Post(models.Model):
 
 class Comment(models.Model):
     text = models.TextField()  # The text content of the comment
-    author = models.ForeignKey(User, related_name='comments', on_delete=models.CASCADE)  # The user who created the comment
+    author = models.ForeignKey(CustomUser, related_name='comments', on_delete=models.CASCADE)  # The user who created the comment
     post = models.ForeignKey(Post, related_name='comments', on_delete=models.CASCADE)  # The post the comment is related to
     parent_comment = models.ForeignKey('self', null=True, blank=True, related_name='replies', on_delete=models.CASCADE)  # The parent comment for replies
     created_at = models.DateTimeField(auto_now_add=True)  # Timestamp when the comment was created
