@@ -2,9 +2,9 @@ from django.db import models
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
-from users.models import CustomUser
+from users.models import CustomUser  # Import CustomUser from users app
 
-User = CustomUser
+User = CustomUser  # Use this alias if you want to keep using 'User' in your code
 
 class CustomUser(AbstractUser):  # This is correct capitalization
     ROLE_CHOICES = (

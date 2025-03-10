@@ -1,4 +1,8 @@
 from django.urls import path
+from rest_framework.routers import DefaultRouter
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework.reverse import reverse
 from .views import (
     UserListCreate, PostListCreate, CommentListCreate,
     PostCommentList, PostLikeCreate, PostCommentCreate,
@@ -6,7 +10,17 @@ from .views import (
     CreatePostView, FollowUserView
 )
 
+@api_view(['GET'])
+def api_root(request, format=None):
+    return Response({
+        'users': reverse('user-list-create', request=request, format=format),
+        'posts': reverse('post-list-create', request=request, format=format),
+        'comments': reverse('comment-list-create', request=request, format=format),
+        'feed': reverse('news-feed', request=request, format=format),
+    })
+
 urlpatterns = [
+    path('', api_root, name='api-root'),
     path('users/', UserListCreate.as_view(), name='user-list-create'),
     path('posts/', PostListCreate.as_view(), name='post-list-create'),
     path('comments/', CommentListCreate.as_view(), name='comment-list-create'),
