@@ -27,7 +27,7 @@ class Post(models.Model):
 
 class Comment(models.Model):
     text = models.TextField()  # The text content of the comment
-    author = models.ForeignKey(CustomUser, related_name='comments', on_delete=models.CASCADE)  # The user who created the comment
+    author = models.ForeignKey(User, related_name='comments', on_delete=models.CASCADE)  # The user who created the comment
     post = models.ForeignKey(Post, related_name='comments', on_delete=models.CASCADE)  # The post the comment is related to
     parent_comment = models.ForeignKey('self', null=True, blank=True, related_name='replies', on_delete=models.CASCADE)  # The parent comment for replies
     created_at = models.DateTimeField(auto_now_add=True)  # Timestamp when the comment was created
@@ -43,3 +43,15 @@ class Comment(models.Model):
             raise ValidationError("Parent comment must belong to the same post.")
         if self.parent_comment == self:
             raise ValidationError("A comment cannot be a reply to itself.")
+
+# Add Like model
+class Like(models.Model):
+    user = models.ForeignKey(User, related_name='likes', on_delete=models.CASCADE)
+    post = models.ForeignKey(Post, related_name='likes', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['user', 'post']
+        
+    def __str__(self):
+        return f"Like by {self.user.username} on Post {self.post.id}"

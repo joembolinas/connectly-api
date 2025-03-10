@@ -1,10 +1,10 @@
 from rest_framework import serializers
-from .models import User, Post, Comment
+from .models import User, Post, Comment, Like
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
-        model = CustomUser
-        exclude = ['password']  # Exclude sensitive fields
+        model = User
+        fields = ['id', 'username', 'email', 'created_at']
         
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
@@ -16,17 +16,16 @@ class UserSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Email already exists.")
         return value
 
-class PostSerializer(serializers.ModelSerializer):
-    comments = serializers.StringRelatedField(many=True, read_only=True)
-
+class LikeSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Post
-        fields = ['id', 'content', 'author', 'created_at', 'comments']
+        model = Like
+        fields = ['id', 'user', 'post', 'created_at']
         
-    def validate_author(self, value):
-        if not User.objects.filter(id=value.id).exists():
-            raise serializers.ValidationError("Author not found.")
-        return value
+    def validate(self, data):
+        # Check if the user has already liked the post
+        if Like.objects.filter(user=data['user'], post=data['post']).exists():
+            raise serializers.ValidationError("You have already liked this post.")
+        return data
 
 class CommentSerializer(serializers.ModelSerializer):
     replies = serializers.SerializerMethodField()
@@ -50,6 +49,26 @@ class CommentSerializer(serializers.ModelSerializer):
         return value
 
     def validate_parent_comment(self, value):
-        if value and value.post != self.initial_data.get('post'):
+        if value and value.post_id != self.initial_data.get('post'):
             raise serializers.ValidationError("Parent comment must belong to the same post.")
         return value
+
+class PostSerializer(serializers.ModelSerializer):
+    comments = serializers.StringRelatedField(many=True, read_only=True)
+    like_count = serializers.SerializerMethodField()
+    comment_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Post
+        fields = ['id', 'content', 'author', 'created_at', 'comments', 'like_count', 'comment_count']
+        
+    def validate_author(self, value):
+        if not User.objects.filter(id=value.id).exists():
+            raise serializers.ValidationError("Author not found.")
+        return value
+        
+    def get_like_count(self, obj):
+        return obj.likes.count()
+        
+    def get_comment_count(self, obj):
+        return obj.comments.count()
