@@ -1,21 +1,35 @@
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import AbstractUser
+from django.conf import settings
+from users.models import CustomUser
 
-class CustomUser(AbstractUser):
+User = CustomUser
+
+class CustomUser(AbstractUser):  # This is correct capitalization
     ROLE_CHOICES = (
         ('admin', 'Admin'),
         ('user', 'User'),
     )
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='user')
-
-class User(models.Model):
-    username = models.CharField(max_length=100, unique=True)  # User's unique username
-    email = models.EmailField(unique=True)  # User's unique email
-    created_at = models.DateTimeField(auto_now_add=True)  # Timestamp when the user was created
-
-    def __str__(self):
-        return self.username
+    
+    # Add these related_name parameters to resolve the conflicts
+    groups = models.ManyToManyField(
+        'auth.Group',
+        verbose_name='groups',
+        blank=True,
+        help_text='The groups this user belongs to.',
+        related_name='custom_user_set',  # Changed from user_set
+        related_query_name='custom_user',
+    )
+    user_permissions = models.ManyToManyField(
+        'auth.Permission',
+        verbose_name='user permissions',
+        blank=True,
+        help_text='Specific permissions for this user.',
+        related_name='custom_user_set',  # Changed from user_set
+        related_query_name='custom_user',
+    )
 
 class Post(models.Model):
     content = models.TextField()  # The text content of the post
@@ -44,9 +58,8 @@ class Comment(models.Model):
         if self.parent_comment == self:
             raise ValidationError("A comment cannot be a reply to itself.")
 
-# Add Like model
 class Like(models.Model):
-    user = models.ForeignKey(User, related_name='likes', on_delete=models.CASCADE)
+    user = models.ForeignKey('users.CustomUser', related_name='likes', on_delete=models.CASCADE)
     post = models.ForeignKey(Post, related_name='likes', on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     
@@ -55,3 +68,18 @@ class Like(models.Model):
         
     def __str__(self):
         return f"Like by {self.user.username} on Post {self.post.id}"
+
+class Follow(models.Model):
+    follower = models.ForeignKey(User, related_name='following', on_delete=models.CASCADE)
+    following = models.ForeignKey(User, related_name='followers', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['follower', 'following']
+        
+    def __str__(self):
+        return f"{self.follower.username} follows {self.following.username}"
+    
+    def clean(self):
+        if self.follower == self.following:
+            raise ValidationError("Users cannot follow themselves.")

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Post, Comment, Like
+from .models import User, Post, Comment, Like, Follow
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -54,21 +54,39 @@ class CommentSerializer(serializers.ModelSerializer):
         return value
 
 class PostSerializer(serializers.ModelSerializer):
-    comments = serializers.StringRelatedField(many=True, read_only=True)
     like_count = serializers.SerializerMethodField()
     comment_count = serializers.SerializerMethodField()
-
+    is_liked = serializers.SerializerMethodField()
+    
     class Meta:
         model = Post
-        fields = ['id', 'content', 'author', 'created_at', 'comments', 'like_count', 'comment_count']
-        
-    def validate_author(self, value):
-        if not User.objects.filter(id=value.id).exists():
-            raise serializers.ValidationError("Author not found.")
-        return value
-        
+        fields = ['id', 'content', 'author', 'created_at', 'like_count', 'comment_count', 'is_liked']
+    
     def get_like_count(self, obj):
         return obj.likes.count()
-        
+    
     def get_comment_count(self, obj):
         return obj.comments.count()
+    
+    def get_is_liked(self, obj):
+        user = self.context.get('request').user if self.context.get('request') else None
+        if user and user.is_authenticated:
+            return Like.objects.filter(user=user, post=obj).exists()
+        return False
+
+# Add Follow serializer
+class FollowSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Follow
+        fields = ['id', 'follower', 'following', 'created_at']
+        
+    def validate(self, data):
+        # Check if the user is trying to follow themselves
+        if data['follower'] == data['following']:
+            raise serializers.ValidationError("You cannot follow yourself.")
+            
+        # Check if the user is already following this user
+        if Follow.objects.filter(follower=data['follower'], following=data['following']).exists():
+            raise serializers.ValidationError("You are already following this user.")
+            
+        return data
