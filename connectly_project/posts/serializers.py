@@ -1,10 +1,11 @@
 from rest_framework import serializers
 from .models import User, Post, Comment, Like, Follow
+from users.models import CustomUser
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
-        model = User
-        fields = ['id', 'username', 'email', 'created_at']
+        model = CustomUser
+        fields = ['id', 'username', 'email', 'date_joined']  # Use date_joined instead of created_at
         
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
