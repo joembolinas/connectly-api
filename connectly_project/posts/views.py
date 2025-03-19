@@ -16,6 +16,7 @@ from .permissions import IsAdminUser, IsRegularUser
 from posts.factory import PostFactory
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.core.cache import cache
 User = get_user_model()
 
 def get_users(request):
@@ -194,19 +195,23 @@ class CreatePostView(APIView):
 
 # News Feed API
 class NewsFeedView(APIView):
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        # Get IDs of users that the current user follows
+        cache_key = f"user_feed_{request.user.id}"
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return Response(cached_data)
+
         following_ids = Follow.objects.filter(
             follower=request.user
         ).values_list('following', flat=True)
         
-        # Get posts from followed users and own posts
+        # Optimized query
         posts = Post.objects.filter(
             Q(author__in=following_ids) | Q(author=request.user)
-        ).order_by('-created_at')
+        ).select_related('author').prefetch_related('comments', 'likes').order_by('-created_at')
         
         # Add pagination
         paginator = PageNumberPagination()
@@ -220,7 +225,10 @@ class NewsFeedView(APIView):
             context={'request': request}
         )
         
-        return paginator.get_paginated_response(serializer.data)
+        response_data = paginator.get_paginated_response(serializer.data).data
+        cache.set(cache_key, response_data, 300)  # Cache for 5 minutes
+
+        return Response(response_data)
 
 # Add Follow view
 class FollowUserView(APIView):
