@@ -12,7 +12,7 @@ from rest_framework.pagination import PageNumberPagination
 #from ratelimit.decorators import ratelimit
 from .models import Post, Comment, Like, Follow
 from .serializers import UserSerializer, PostSerializer, CommentSerializer, LikeSerializer
-from .permissions import IsAdminUser, IsRegularUser
+from .permissions import IsAdminUser, IsRegularUser, IsModeratorUser, IsOwnerOrReadOnly, IsPostOwnerOrPublic
 from posts.factory import PostFactory
 from django.contrib.auth import get_user_model
 from django.db.models import Q
@@ -74,29 +74,60 @@ class UserListCreate(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class PostListCreate(APIView):
-    @swagger_auto_schema(
-        operation_description="Get a list of all posts",
-        responses={200: PostSerializer(many=True)}
-    )
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+    
     def get(self, request):
-        posts = Post.objects.all()
+        # Admin/moderators see all posts
+        if request.user.role in ['admin', 'moderator'] or request.user.is_superuser:
+            posts = Post.objects.all()
+        else:
+            # Regular users see public posts and their own private posts
+            posts = Post.objects.filter(
+                Q(privacy='public') | 
+                Q(author=request.user) |
+                Q(privacy='followers', author__in=Follow.objects.filter(follower=request.user).values_list('following', flat=True))
+            )
         serializer = PostSerializer(posts, many=True)
         return Response(serializer.data)
 
-    @swagger_auto_schema(
-        operation_description="Create a new post",
-        request_body=PostSerializer,
-        responses={
-            201: PostSerializer,
-            400: "Bad request"
-        }
-    )
     def post(self, request):
         serializer = PostSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(author=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class PostDetail(APIView):
+    permission_classes = [IsAuthenticated, IsPostOwnerOrPublic]
+    
+    def get_object(self, pk):
+        return get_object_or_404(Post, pk=pk)
+    
+    def get(self, request, pk):
+        post = self.get_object(pk)
+        self.check_object_permissions(request, post)
+        serializer = PostSerializer(post)
+        return Response(serializer.data)
+    
+    def put(self, request, pk):
+        post = self.get_object(pk)
+        # Only post owner can edit
+        if post.author != request.user:
+            return Response({"detail": "Not authorized to edit this post"}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = PostSerializer(post, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def delete(self, request, pk):
+        post = self.get_object(pk)
+        # Admin, moderator, or post owner can delete
+        if request.user.role in ['admin', 'moderator'] or post.author == request.user or request.user.is_superuser:
+            post.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response({"detail": "Not authorized to delete this post"}, status=status.HTTP_403_FORBIDDEN)
 
 class CommentListCreate(APIView):
     def get(self, request):
@@ -174,10 +205,16 @@ class PostCommentCreate(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class AdminOnlyView(APIView):
-    permission_classes = [IsAdminUser]
-
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    
     def get(self, request):
-        return Response({"message": "Admin-only content"})
+        return Response({"message": "Hello, admin!"})
+
+class ModeratorView(APIView):
+    permission_classes = [IsAuthenticated, IsModeratorUser]
+    
+    def get(self, request):
+        return Response({"message": "Hello, moderator or admin!"})
 
 class UserView(APIView):
     permission_classes = [IsRegularUser]
@@ -208,36 +245,24 @@ class CreatePostView(APIView):
 
 # News Feed API
 class NewsFeedView(APIView):
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        user = request.user
+        # Get all users that the current user follows
+        following_users = Follow.objects.filter(follower=request.user).values_list('following', flat=True)
         
-        # Create a cache key based on user ID and last update time of posts
-        cache_key = CacheHelper.get_key(
-            'feed', 
-            user.id,
-            Post.objects.filter(
-                author__in=Follow.objects.filter(follower=user).values('following')
-            ).order_by('-created_at').first().created_at if Post.objects.filter(
-                author__in=Follow.objects.filter(follower=user).values('following')
-            ).exists() else 'empty'
-        )
+        # Get posts based on privacy settings:
+        # 1. Public posts from followed users
+        # 2. Followers-only posts from followed users
+        # 3. User's own posts
+        feed_posts = Post.objects.filter(
+            (Q(privacy='public') & Q(author__in=following_users)) |
+            (Q(privacy='followers') & Q(author__in=following_users)) |
+            Q(author=request.user)
+        ).order_by('-created_at')
         
-        # Get or set the feed in cache
-        def get_feed():
-            # Get posts from users that the current user follows
-            following_users = Follow.objects.filter(follower=user).values('following')
-            posts = Post.objects.filter(
-                author__in=following_users
-            ).select_related('author').prefetch_related('comments', 'likes').order_by('-created_at')[:50]
-            
-            return PostSerializer(posts, many=True, context={'request': request}).data
-        
-        feed_data = CacheHelper.get_or_set(cache_key, get_feed)
-        
-        return Response(feed_data)
+        serializer = PostSerializer(feed_posts, many=True)
+        return Response(serializer.data)
 
 # Add Follow view
 class FollowUserView(APIView):
