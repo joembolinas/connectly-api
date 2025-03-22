@@ -225,14 +225,21 @@ ACCOUNT_LOGOUT_REDIRECT_URL = '/accounts/login/'
 # Email settings for development
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-# Redis Cache Configuration - replaced with local memory cache
+# Redis cache configuration
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "unique-snowflake",
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",  # Use redis://redis:6379/1 for Docker
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "IGNORE_EXCEPTIONS": True,  # Redis is not mandatory for the app to work
+        }
     }
 }
 
+# Cache timeout in seconds (15 minutes)
+CACHE_TTL = 60 * 15
 
-# SESSION_ENGINE = "django.contrib.sessions.backends.cache"
-# SESSION_CACHE_ALIAS = "default"
+# Use cache sessions
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
