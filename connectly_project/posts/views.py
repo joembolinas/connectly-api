@@ -17,6 +17,8 @@ from posts.factory import PostFactory
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.core.cache import cache
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 User = get_user_model()
 
 def get_users(request):
@@ -70,11 +72,23 @@ class UserListCreate(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class PostListCreate(APIView):
+    @swagger_auto_schema(
+        operation_description="Get a list of all posts",
+        responses={200: PostSerializer(many=True)}
+    )
     def get(self, request):
         posts = Post.objects.all()
         serializer = PostSerializer(posts, many=True)
         return Response(serializer.data)
 
+    @swagger_auto_schema(
+        operation_description="Create a new post",
+        request_body=PostSerializer,
+        responses={
+            201: PostSerializer,
+            400: "Bad request"
+        }
+    )
     def post(self, request):
         serializer = PostSerializer(data=request.data)
         if serializer.is_valid():
@@ -116,6 +130,14 @@ class PostLikeCreate(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
     
+    @swagger_auto_schema(
+        operation_description="Like a post",
+        responses={
+            201: "Like created",
+            400: "Already liked",
+            404: "Post not found"
+        }
+    )
     def post(self, request, post_id):
         try:
             post = Post.objects.get(id=post_id)
