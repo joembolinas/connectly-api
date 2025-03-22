@@ -19,6 +19,8 @@ from django.db.models import Q
 from django.core.cache import cache
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from .utils import CacheHelper
+
 User = get_user_model()
 
 def get_users(request):
@@ -221,36 +223,32 @@ class NewsFeedView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        cache_key = f"user_feed_{request.user.id}"
-        cached_data = cache.get(cache_key)
-        if cached_data:
-            return Response(cached_data)
-
-        following_ids = Follow.objects.filter(
-            follower=request.user
-        ).values_list('following', flat=True)
+        user = request.user
         
-        # Optimized query
-        posts = Post.objects.filter(
-            Q(author__in=following_ids) | Q(author=request.user)
-        ).select_related('author').prefetch_related('comments', 'likes').order_by('-created_at')
-        
-        # Add pagination
-        paginator = PageNumberPagination()
-        paginator.page_size = 10
-        result_page = paginator.paginate_queryset(posts, request)
-        
-        # Serialize posts with context to determine if the user liked them
-        serializer = PostSerializer(
-            result_page, 
-            many=True, 
-            context={'request': request}
+        # Create a cache key based on user ID and last update time of posts
+        cache_key = CacheHelper.get_key(
+            'feed', 
+            user.id,
+            Post.objects.filter(
+                author__in=Follow.objects.filter(follower=user).values('following')
+            ).order_by('-created_at').first().created_at if Post.objects.filter(
+                author__in=Follow.objects.filter(follower=user).values('following')
+            ).exists() else 'empty'
         )
         
-        response_data = paginator.get_paginated_response(serializer.data).data
-        cache.set(cache_key, response_data, 300)  # Cache for 5 minutes
-
-        return Response(response_data)
+        # Get or set the feed in cache
+        def get_feed():
+            # Get posts from users that the current user follows
+            following_users = Follow.objects.filter(follower=user).values('following')
+            posts = Post.objects.filter(
+                author__in=following_users
+            ).select_related('author').prefetch_related('comments', 'likes').order_by('-created_at')[:50]
+            
+            return PostSerializer(posts, many=True, context={'request': request}).data
+        
+        feed_data = CacheHelper.get_or_set(cache_key, get_feed)
+        
+        return Response(feed_data)
 
 # Add Follow view
 class FollowUserView(APIView):

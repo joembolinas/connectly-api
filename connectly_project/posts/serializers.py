@@ -1,19 +1,19 @@
 from rest_framework import serializers
-from .models import User, Post, Comment, Like, Follow
-from users.models import CustomUser
+from .models import Post, Comment, Like, Follow
+from users.models import CustomUser  # Changed from User to CustomUser
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
-        model = CustomUser
+        model = CustomUser  # Changed from User to CustomUser
         fields = ['id', 'username', 'email', 'date_joined']  # Use date_joined instead of created_at
         
     def validate_username(self, value):
-        if User.objects.filter(username=value).exists():
+        if CustomUser.objects.filter(username=value).exists():  # Changed from User to CustomUser
             raise serializers.ValidationError("Username already exists.")
         return value
     
     def validate_email(self, value):
-        if User.objects.filter(email=value).exists():
+        if CustomUser.objects.filter(email=value).exists():  # Changed from User to CustomUser
             raise serializers.ValidationError("Email already exists.")
         return value
 
@@ -45,7 +45,7 @@ class CommentSerializer(serializers.ModelSerializer):
         return value
 
     def validate_author(self, value):
-        if not User.objects.filter(id=value.id).exists():
+        if not CustomUser.objects.filter(id=value.id).exists():  # Changed from User to CustomUser
             raise serializers.ValidationError("Author not found.")
         return value
 
