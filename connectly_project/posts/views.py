@@ -129,7 +129,7 @@ class PostCommentList(APIView):
         return paginator.get_paginated_response(serializer.data)
 
 class PostLikeCreate(APIView):
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
     
     @swagger_auto_schema(
@@ -141,22 +141,11 @@ class PostLikeCreate(APIView):
         }
     )
     def post(self, request, post_id):
-        try:
-            post = Post.objects.get(id=post_id)
-        except Post.DoesNotExist:
-            return Response({"message": "Post not found."}, status=status.HTTP_404_NOT_FOUND)
-        
-        # Check if the user has already liked the post
-        like_exists = Like.objects.filter(user=request.user, post=post).exists()
-        
-        if like_exists:
-            # Unlike the post by deleting the like
-            Like.objects.filter(user=request.user, post=post).delete()
-            return Response({"message": "Post unliked successfully."}, status=status.HTTP_200_OK)
-        else:
-            # Like the post
-            like = Like.objects.create(user=request.user, post=post)
-            return Response({"message": "Post liked successfully."}, status=status.HTTP_201_CREATED)
+        post = get_object_or_404(Post, id=post_id)
+        if Like.objects.filter(user=request.user, post=post).exists():
+            return Response({"detail": "Already liked"}, status=status.HTTP_400_BAD_REQUEST)
+        Like.objects.create(user=request.user, post=post)
+        return Response({"detail": "Like created"}, status=status.HTTP_201_CREATED)
 
 class PostCommentCreate(APIView):
     authentication_classes = [TokenAuthentication]
