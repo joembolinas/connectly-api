@@ -1,33 +1,10 @@
 from django.db import models
 from django.core.exceptions import ValidationError
-from django.contrib.auth.models import AbstractUser
 from django.conf import settings
 from users.models import CustomUser  # Import CustomUser from users app
 
-class CustomUser(AbstractUser):  # This is correct capitalization
-    ROLE_CHOICES = (
-        ('admin', 'Admin'),
-        ('user', 'User'),
-    )
-    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='user')
-    
-    # Add these related_name parameters to resolve the conflicts
-    groups = models.ManyToManyField(
-        'auth.Group',
-        verbose_name='groups',
-        blank=True,
-        help_text='The groups this user belongs to.',
-        related_name='custom_user_set',  # Changed from user_set
-        related_query_name='custom_user',
-    )
-    user_permissions = models.ManyToManyField(
-        'auth.Permission',
-        verbose_name='user permissions',
-        blank=True,
-        help_text='Specific permissions for this user.',
-        related_name='custom_user_set',  # Changed from user_set
-        related_query_name='custom_user',
-    )
+# Remove duplicate CustomUser model definition
+# The CustomUser model should only be defined in users/models.py
 
 class Post(models.Model):
     content = models.TextField()  # The text content of the post

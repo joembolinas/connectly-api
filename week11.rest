@@ -1,0 +1,77 @@
+@baseUrl = http://127.0.0.1:8000
+@contentType = application/json
+@basicAuth = Basic am9lbS1hZG1pbjpBZG1pbkAxMjM0NTY=
+
+### Step 1: Get the CSRF token
+# @name getCsrf
+GET {{baseUrl}}/admin/login/ HTTP/1.1
+
+### Step 2: Extract the CSRF token and sessionid from the response cookies
+# @cookie csrftoken {{getCsrf.response.headers.$.set-cookie[0]}}
+# After running the above request, manually set the csrftoken variable
+@csrftoken = 4TfmY8mV1v5aQ9qRwa0bf4VOOfMBRU6s
+
+### Step 3: Login to Django admin
+# @name login
+POST {{baseUrl}}/admin/login/ HTTP/1.1
+Content-Type: application/x-www-form-urlencoded
+Cookie: csrftoken={{csrftoken}}
+
+csrfmiddlewaretoken={{csrftoken}}&username=joem-admin&password=Admin%40123456&next=%2Fadmin%2F
+
+### Step 4: Extract the sessionid from the response cookies
+# After running the above request, manually set the sessionid variable
+@sessionid = xgw5dm738dq9xjnxy2v0g0nvbrlfw7ai
+
+### Step 5: Test a GET request with session authentication
+GET {{baseUrl}}/api/posts/posts/ HTTP/1.1
+Cookie: csrftoken={{csrftoken}}; sessionid={{sessionid}}
+
+### Step 6: Create a post with session authentication
+POST {{baseUrl}}{{baseUrl}}/api/posts/users/3/follow/ HTTP/1.1
+Content-Type: {{contentType}}
+Cookie: csrftoken={{csrftoken}}; sessionid={{sessionid}}
+X-CSRFToken: {{csrftoken}}
+
+{
+    "content": "Test post with session authentication",
+    "author": 1
+}
+
+###
+// SIMPLE POST TEST - Create a post
+POST {{baseUrl}}/api/posts/posts/ HTTP/1.1
+Content-Type: application/json
+Authorization: {{{{csrftoken}}}}
+
+{
+    "content": "Simple test post",
+    "author": 1
+}
+
+###
+// SIMPLE FOLLOW TEST - Follow a user
+POST {{baseUrl}}/api/posts/users/3/follow/ HTTP/1.1
+Content-Type: application/json
+Authorization: {{basicAuth}}
+
+{}
+
+###
+// SIMPLE COMMENT TEST - Create a comment
+POST {{baseUrl}}/api/posts/comments/ HTTP/1.1
+Content-Type: application/json
+Authorization: {{basicAuth}}
+
+{
+    "text": "This is a test comment",
+    "post": 1
+}
+
+###
+// SIMPLE LIKE TEST - Like a post
+POST {{baseUrl}}/api/posts/posts/1/like/ HTTP/1.1
+Content-Type: application/json
+Authorization: {{basicAuth}}
+
+{}
