@@ -33,8 +33,14 @@ class CustomUser(AbstractUser):  # This is correct capitalization
 
 class Post(models.Model):
     content = models.TextField()  # The text content of the post
-    author = models.ForeignKey(User, related_name='posts', on_delete=models.CASCADE)  # The user who created the post
+    author = models.ForeignKey(CustomUser, related_name='posts', on_delete=models.CASCADE)  # The user who created the post
     created_at = models.DateTimeField(auto_now_add=True)  # Timestamp when the post was created
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['author']),
+            models.Index(fields=['created_at']),
+        ]
 
     def __str__(self):
         return f"Post by {self.author.username} at {self.created_at}"
