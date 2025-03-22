@@ -240,6 +240,5 @@ CACHES = {
 # Cache timeout in seconds (15 minutes)
 CACHE_TTL = 60 * 15
 
-# Use cache sessions
-SESSION_ENGINE = "django.contrib.sessions.backends.cache"
-SESSION_CACHE_ALIAS = "default"
+# Use database sessions instead of cache sessions
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
