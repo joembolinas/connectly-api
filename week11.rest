@@ -1,253 +1,77 @@
 @baseUrl = http://127.0.0.1:8000
 @contentType = application/json
+@basicAuth = Basic am9lbS1hZG1pbjpBZG1pbkAxMjM0NTY=
 
+### Step 1: Get the CSRF token
+# @name getCsrf
+GET {{baseUrl}}/admin/login/ HTTP/1.1
 
-
-
-// 2.1.1 Get CSRF token first
-GET {{baseUrl}}/accounts/login/ HTTP/1.1
-
-// After this request, look for the csrftoken in the response cookies
-// Then manually set the @csrftoken variable
+### Step 2: Extract the CSRF token and sessionid from the response cookies
+# @cookie csrftoken {{getCsrf.response.headers.$.set-cookie[0]}}
+# After running the above request, manually set the csrftoken variable
 @csrftoken = 4TfmY8mV1v5aQ9qRwa0bf4VOOfMBRU6s
 
-
-###
-// 2.1.2 Login with CSRF token
-POST {{baseUrl}}/accounts/login/ HTTP/1.1
+### Step 3: Login to Django admin
+# @name login
+POST {{baseUrl}}/admin/login/ HTTP/1.1
 Content-Type: application/x-www-form-urlencoded
-X-CSRFToken: {{csrftoken}}
 Cookie: csrftoken={{csrftoken}}
 
-username=joem-admin&password=Admin@123456
+csrfmiddlewaretoken={{csrftoken}}&username=joem-admin&password=Admin%40123456&next=%2Fadmin%2F
 
+### Step 4: Extract the sessionid from the response cookies
+# After running the above request, manually set the sessionid variable
+@sessionid = xgw5dm738dq9xjnxy2v0g0nvbrlfw7ai
 
-POST {{baseUrl}}/api/token-auth/ HTTP/1.1
-Content-Type: {{contentType}}
-
-{
-    "username": "joem-admin",
-    "password": "Admin@123456"
-}
-
-@baseUrl = http://127.0.0.1:8000
-@contentType = application/json
-
-###
-// 2.1.1 Get CSRF token first
-GET {{baseUrl}}/accounts/login/ HTTP/1.1
-
-// After this request, look for the csrftoken in the response cookies
-// Then manually set the @csrftoken variable
-@csrftoken = 4TfmY8mV1v5aQ9qRwa0bf4VOOfMBRU6s
-
-###
-// 2.1.2 Login with CSRF token
-POST {{baseUrl}}/accounts/login/ HTTP/1.1
-Content-Type: application/x-www-form-urlencoded
-X-CSRFToken: {{csrftoken}}
-Cookie: csrftoken={{csrftoken}}
-
-username=joem-admin&password=Admin@123456
-
-###
-// 2.1.3 Get token using the API token auth endpoint
-POST {{baseUrl}}/api/token-auth/ HTTP/1.1
-Content-Type: {{contentType}}
-
-{
-    "username": "joem-admin",
-    "password": "Admin@123456"
-}
-
-
-// Store your token here after receiving it
-@token = c46fadbde93c49176f4466f5ddabd06492e65ca9
-
-###
-// 3. USER MANAGEMENT ENDPOINTS
-
-// 3.1 List all users
-GET {{baseUrl}}/api/posts/users/ HTTP/1.1
-Authorization: Token {{token}}
-
-
-
-###
-// 3.2 Create a new user (admin only)
-POST {{baseUrl}}/api/posts/users/ HTTP/1.1
-Content-Type: {{contentType}}
-Authorization: Token {{token}}
-
-{
-    "username": "newuser",
-    "email": "newuser@example.com",
-    "password": "securepassword123"
-}
-
-###
-// 4. POST MANAGEMENT ENDPOINTS
-
-// 4.1 Create a new post
-POST {{baseUrl}}/api/posts/posts/ HTTP/1.1
-Content-Type: {{contentType}}
-Authorization: Token {{token}}
-
-{
-    "content": "This is a test post from REST Client!"
-}
-
-###
-// 4.2 List all posts
+### Step 5: Test a GET request with session authentication
 GET {{baseUrl}}/api/posts/posts/ HTTP/1.1
-Authorization: Token {{token}}
+Cookie: csrftoken={{csrftoken}}; sessionid={{sessionid}}
 
-// After getting posts, note a post ID to use in subsequent requests
-// Update the @post_id variable
-
-###
-// 4.3 Create post using factory pattern
-POST {{baseUrl}}/api/posts/create-post/ HTTP/1.1
+### Step 6: Create a post with session authentication
+POST {{baseUrl}}{{baseUrl}}/api/posts/users/3/follow/ HTTP/1.1
 Content-Type: {{contentType}}
-Authorization: Token {{token}}
+Cookie: csrftoken={{csrftoken}}; sessionid={{sessionid}}
+X-CSRFToken: {{csrftoken}}
 
 {
-    "content": "This is a post created using factory pattern!"
+    "content": "Test post with session authentication",
+    "author": 1
 }
 
 ###
-// 4.4 Get a specific post
-GET {{baseUrl}}/api/posts/posts/1/ HTTP/1.1
-Authorization: Token {{token}}
-
-###
-// 4.5 Update a post
-PUT {{baseUrl}}/api/posts/posts/1/ HTTP/1.1
-Content-Type: {{contentType}}
-Authorization: Token {{token}}
+// SIMPLE POST TEST - Create a post
+POST {{baseUrl}}/api/posts/posts/ HTTP/1.1
+Content-Type: application/json
+Authorization: {{{{csrftoken}}}}
 
 {
-    "content": "This post has been updated!"
+    "content": "Simple test post",
+    "author": 1
 }
 
 ###
-// 4.6 Like a post
-POST {{baseUrl}}/api/posts/posts/1/like/ HTTP/1.1
-Content-Type: {{contentType}}
-Authorization: Token {{token}}
+// SIMPLE FOLLOW TEST - Follow a user
+POST {{baseUrl}}/api/posts/users/3/follow/ HTTP/1.1
+Content-Type: application/json
+Authorization: {{basicAuth}}
 
 {}
 
 ###
-// 5. COMMENT ENDPOINTS
-
-// 5.1 List all comments
-GET {{baseUrl}}/api/posts/comments/ HTTP/1.1
-Authorization: Token {{token}}
-
-###
-// 5.2 Create a comment
+// SIMPLE COMMENT TEST - Create a comment
 POST {{baseUrl}}/api/posts/comments/ HTTP/1.1
-Content-Type: {{contentType}}
-Authorization: Token {{token}}
+Content-Type: application/json
+Authorization: {{basicAuth}}
 
 {
-    "text": "This is a test comment!",
+    "text": "This is a test comment",
     "post": 1
 }
 
 ###
-// 5.3 List comments for a specific post
-GET {{baseUrl}}/api/posts/posts/1/comments/ HTTP/1.1
-Authorization: Token {{token}}
-
-###
-// 5.4 Add a comment to a specific post
-POST {{baseUrl}}/api/posts/posts/1/comment/ HTTP/1.1
-Content-Type: {{contentType}}
-Authorization: Token {{token}}
-
-{
-    "text": "Another test comment directly on a post!"
-}
-
-###
-// 6. FOLLOW ENDPOINTS
-
-// 6.1 Follow a user
-// Replace 2 with the ID of a user you want to follow
-POST {{baseUrl}}/api/posts/users/2/follow/ HTTP/1.1
-Content-Type: {{contentType}}
-Authorization: Token {{token}}
+// SIMPLE LIKE TEST - Like a post
+POST {{baseUrl}}/api/posts/posts/1/like/ HTTP/1.1
+Content-Type: application/json
+Authorization: {{basicAuth}}
 
 {}
-
-###
-// 6.2 Unfollow a user
-DELETE {{baseUrl}}/api/posts/users/2/follow/ HTTP/1.1
-Authorization: Token {{token}}
-
-###
-// 7. FEED ENDPOINT
-
-// 7.1 Get personalized news feed
-GET {{baseUrl}}/api/posts/feed/ HTTP/1.1
-Authorization: Token {{token}}
-
-###
-// 8. ROLE-BASED ENDPOINTS
-
-// 8.1 Admin-only endpoint
-GET {{baseUrl}}/api/posts/admin-only/ HTTP/1.1
-Authorization: Token {{token}}
-
-###
-// 8.2 User view endpoint
-GET {{baseUrl}}/api/posts/user-view/ HTTP/1.1
-Authorization: Token {{token}}
-
-###
-// 8.3 Protected endpoint
-GET {{baseUrl}}/api/posts/protected/ HTTP/1.1
-Authorization: Token {{token}}
-
-###
-// 9. API DOCUMENTATION
-
-// 9.1 Swagger UI
-GET {{baseUrl}}/swagger/ HTTP/1.1
-
-###
-// 9.2 ReDoc
-GET {{baseUrl}}/redoc/ HTTP/1.1
-
-
-###
-// 3.2 Create a new user with Basic Authentication
-POST {{baseUrl}}/api/posts/users/ HTTP/1.1
-Content-Type: {{contentType}}
-Authorization: Basic am9lbS1hZG1pbjpBZG1pbkAxMjM0NTY=  // This is joem-admin:Admin@123456 encoded in Base64
-
-{
-    "username": "newuser",
-    "email": "newuser@example.com",
-    "password": "securepassword123"
-}
-
-###
-
-
-POST {{baseUrl}}/api/posts/users/ HTTP/1.1
-Content-Type: {{contentType}}
-Authorization: Basic am9lbS1hZG1pbjpBZG1pbkAxMjM0NTY=
-
-{
-    "username": "newuser",
-    "email": "newuser@example.com",
-    "password": "securepassword123"
-}
-
-
-###
-
-
