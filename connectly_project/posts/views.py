@@ -5,7 +5,7 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.authentication import TokenAuthentication
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.pagination import PageNumberPagination
@@ -17,6 +17,10 @@ from posts.factory import PostFactory
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.core.cache import cache
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+from .utils import CacheHelper
+
 User = get_user_model()
 
 def get_users(request):
@@ -70,11 +74,23 @@ class UserListCreate(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class PostListCreate(APIView):
+    @swagger_auto_schema(
+        operation_description="Get a list of all posts",
+        responses={200: PostSerializer(many=True)}
+    )
     def get(self, request):
         posts = Post.objects.all()
         serializer = PostSerializer(posts, many=True)
         return Response(serializer.data)
 
+    @swagger_auto_schema(
+        operation_description="Create a new post",
+        request_body=PostSerializer,
+        responses={
+            201: PostSerializer,
+            400: "Bad request"
+        }
+    )
     def post(self, request):
         serializer = PostSerializer(data=request.data)
         if serializer.is_valid():
@@ -113,26 +129,23 @@ class PostCommentList(APIView):
         return paginator.get_paginated_response(serializer.data)
 
 class PostLikeCreate(APIView):
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
     
+    @swagger_auto_schema(
+        operation_description="Like a post",
+        responses={
+            201: "Like created",
+            400: "Already liked",
+            404: "Post not found"
+        }
+    )
     def post(self, request, post_id):
-        try:
-            post = Post.objects.get(id=post_id)
-        except Post.DoesNotExist:
-            return Response({"message": "Post not found."}, status=status.HTTP_404_NOT_FOUND)
-        
-        # Check if the user has already liked the post
-        like_exists = Like.objects.filter(user=request.user, post=post).exists()
-        
-        if like_exists:
-            # Unlike the post by deleting the like
-            Like.objects.filter(user=request.user, post=post).delete()
-            return Response({"message": "Post unliked successfully."}, status=status.HTTP_200_OK)
-        else:
-            # Like the post
-            like = Like.objects.create(user=request.user, post=post)
-            return Response({"message": "Post liked successfully."}, status=status.HTTP_201_CREATED)
+        post = get_object_or_404(Post, id=post_id)
+        if Like.objects.filter(user=request.user, post=post).exists():
+            return Response({"detail": "Already liked"}, status=status.HTTP_400_BAD_REQUEST)
+        Like.objects.create(user=request.user, post=post)
+        return Response({"detail": "Like created"}, status=status.HTTP_201_CREATED)
 
 class PostCommentCreate(APIView):
     authentication_classes = [TokenAuthentication]
@@ -199,36 +212,32 @@ class NewsFeedView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        cache_key = f"user_feed_{request.user.id}"
-        cached_data = cache.get(cache_key)
-        if cached_data:
-            return Response(cached_data)
-
-        following_ids = Follow.objects.filter(
-            follower=request.user
-        ).values_list('following', flat=True)
+        user = request.user
         
-        # Optimized query
-        posts = Post.objects.filter(
-            Q(author__in=following_ids) | Q(author=request.user)
-        ).select_related('author').prefetch_related('comments', 'likes').order_by('-created_at')
-        
-        # Add pagination
-        paginator = PageNumberPagination()
-        paginator.page_size = 10
-        result_page = paginator.paginate_queryset(posts, request)
-        
-        # Serialize posts with context to determine if the user liked them
-        serializer = PostSerializer(
-            result_page, 
-            many=True, 
-            context={'request': request}
+        # Create a cache key based on user ID and last update time of posts
+        cache_key = CacheHelper.get_key(
+            'feed', 
+            user.id,
+            Post.objects.filter(
+                author__in=Follow.objects.filter(follower=user).values('following')
+            ).order_by('-created_at').first().created_at if Post.objects.filter(
+                author__in=Follow.objects.filter(follower=user).values('following')
+            ).exists() else 'empty'
         )
         
-        response_data = paginator.get_paginated_response(serializer.data).data
-        cache.set(cache_key, response_data, 300)  # Cache for 5 minutes
-
-        return Response(response_data)
+        # Get or set the feed in cache
+        def get_feed():
+            # Get posts from users that the current user follows
+            following_users = Follow.objects.filter(follower=user).values('following')
+            posts = Post.objects.filter(
+                author__in=following_users
+            ).select_related('author').prefetch_related('comments', 'likes').order_by('-created_at')[:50]
+            
+            return PostSerializer(posts, many=True, context={'request': request}).data
+        
+        feed_data = CacheHelper.get_or_set(cache_key, get_feed)
+        
+        return Response(feed_data)
 
 # Add Follow view
 class FollowUserView(APIView):

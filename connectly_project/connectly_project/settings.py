@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
+    'drf_yasg',
 ]
 
 MIDDLEWARE = [
@@ -214,7 +215,7 @@ SOCIALACCOUNT_PROVIDERS = {
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USERNAME_REQUIRED = True
-ACCOUNT_AUTHENTICATION_METHOD = 'email'
+ACCOUNT_LOGIN_METHODS = {'email', 'username'}
 ACCOUNT_EMAIL_VERIFICATION = 'optional'
 
 # URLs
@@ -224,17 +225,20 @@ ACCOUNT_LOGOUT_REDIRECT_URL = '/accounts/login/'
 # Email settings for development
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-# Redis Cache Configuration
+# Redis cache configuration
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/1",
+        "LOCATION": "redis://127.0.0.1:6379/1",  # Use redis://redis:6379/1 for Docker
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "IGNORE_EXCEPTIONS": True,  # Redis is not mandatory for the app to work
         }
     }
 }
 
-# For session caching (optional)
-SESSION_ENGINE = "django.contrib.sessions.backends.cache"
-SESSION_CACHE_ALIAS = "default"
+# Cache timeout in seconds (15 minutes)
+CACHE_TTL = 60 * 15
+
+# Use database sessions instead of cache sessions
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
