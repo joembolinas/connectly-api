@@ -5,7 +5,7 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.authentication import TokenAuthentication
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.pagination import PageNumberPagination
@@ -16,6 +16,9 @@ from .permissions import IsAdminUser, IsRegularUser
 from posts.factory import PostFactory
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from .utils import get_paginated_response, handle_exception, validate_post_ownership
+from .throttling import PostCreationRateThrottle, AuthRateThrottle
+
 User = get_user_model()
 
 def get_users(request):
@@ -68,18 +71,42 @@ class UserListCreate(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class PostListCreate(APIView):
+class PostListCreate(APIView, PageNumberPagination):
+    """
+    API view for listing and creating posts.
+    
+    GET: List all posts, paginated
+    POST: Create a new post
+    """
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+    
     def get(self, request):
-        posts = Post.objects.all()
-        serializer = PostSerializer(posts, many=True)
-        return Response(serializer.data)
-
+        """Get a paginated list of all posts"""
+        try:
+            posts = Post.objects.all().order_by('-created_at')
+            return get_paginated_response(
+                self, 
+                posts, 
+                PostSerializer, 
+                request
+            )
+        except Exception as e:
+            return handle_exception(e)
+    
     def post(self, request):
-        serializer = PostSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        """Create a new post"""
+        try:
+            data = request.data.copy()
+            data['author'] = request.user.id
+            
+            serializer = PostSerializer(data=data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return handle_exception(e)
 
 class CommentListCreate(APIView):
     def get(self, request):
@@ -184,13 +211,26 @@ class ProtectedView(APIView):
 #    return Response({"message": "Rate-limited view"})
 
 class CreatePostView(APIView):
-    authentication_classes = [TokenAuthentication]
+    """
+    API view for creating posts with rate limiting.
+    """
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
+    throttle_classes = [PostCreationRateThrottle]
     
     def post(self, request):
-        content = request.data.get('content')
-        post = PostFactory.create_post(request.user, content)
-        return Response({"id": post.id, "message": "Post created successfully"})
+        """Create a new post with rate limiting applied"""
+        try:
+            data = request.data.copy()
+            data['author'] = request.user.id
+            
+            serializer = PostSerializer(data=data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return handle_exception(e)
 
 # News Feed API
 class NewsFeedView(APIView):

@@ -32,54 +32,142 @@ class CustomUser(AbstractUser):  # This is correct capitalization
     )
 
 class Post(models.Model):
-    content = models.TextField()  # The text content of the post
-    author = models.ForeignKey(User, related_name='posts', on_delete=models.CASCADE)  # The user who created the post
-    created_at = models.DateTimeField(auto_now_add=True)  # Timestamp when the post was created
-
+    """
+    Model representing a user post in the social network.
+    
+    Attributes:
+        author (ForeignKey): The user who created the post
+        content (TextField): The content of the post
+        created_at (DateTimeField): When the post was created
+        updated_at (DateTimeField): When the post was last updated
+    """
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='posts')
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
     def __str__(self):
-        return f"Post by {self.author.username} at {self.created_at}"
+        """Return a string representation of the post"""
+        return f"Post by {self.author.username}: {self.content[:50]}"
+    
+    def clean(self):
+        """Validate the post data"""
+        if not self.content or self.content.isspace():
+            raise ValidationError("Post content cannot be empty.")
+        
+        if len(self.content) > 5000:
+            raise ValidationError("Post content cannot exceed 5000 characters.")
+    
+    def save(self, *args, **kwargs):
+        """Override save to ensure validation is called"""
+        self.clean()
+        super().save(*args, **kwargs)
+
 
 class Comment(models.Model):
-    text = models.TextField()  # The text content of the comment
-    author = models.ForeignKey(User, related_name='comments', on_delete=models.CASCADE)  # The user who created the comment
-    post = models.ForeignKey(Post, related_name='comments', on_delete=models.CASCADE)  # The post the comment is related to
-    parent_comment = models.ForeignKey('self', null=True, blank=True, related_name='replies', on_delete=models.CASCADE)  # The parent comment for replies
-    created_at = models.DateTimeField(auto_now_add=True)  # Timestamp when the comment was created
+    """
+    Model representing a comment on a post.
     
-    class Meta:
-        unique_together = ['author', 'post', 'text']
-
+    Attributes:
+        post (ForeignKey): The post being commented on
+        author (ForeignKey): The user who created the comment
+        content (TextField): The content of the comment
+        parent (ForeignKey): Parent comment if this is a reply
+        created_at (DateTimeField): When the comment was created
+    """
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='comments')
+    content = models.TextField()
+    parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE, related_name='replies')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
     def __str__(self):
-        return f"Comment by {self.author.username} on Post {self.post.id}"
-
+        """Return a string representation of the comment"""
+        return f"Comment by {self.author.username} on {self.post}"
+    
     def clean(self):
-        if self.parent_comment and self.parent_comment.post != self.post:
-            raise ValidationError("Parent comment must belong to the same post.")
-        if self.parent_comment == self:
-            raise ValidationError("A comment cannot be a reply to itself.")
+        """Validate the comment data"""
+        if not self.content or self.content.isspace():
+            raise ValidationError("Comment content cannot be empty.")
+        
+        if len(self.content) > 1000:
+            raise ValidationError("Comment content cannot exceed 1000 characters.")
+        
+        # Prevent deep nesting of comments (more than 2 levels)
+        if self.parent and self.parent.parent:
+            raise ValidationError("Comments can only be nested up to 2 levels deep.")
+    
+    def save(self, *args, **kwargs):
+        """Override save to ensure validation is called"""
+        self.clean()
+        super().save(*args, **kwargs)
+
 
 class Like(models.Model):
-    user = models.ForeignKey('users.CustomUser', related_name='likes', on_delete=models.CASCADE)
-    post = models.ForeignKey(Post, related_name='likes', on_delete=models.CASCADE)
+    """
+    Model representing a like on a post.
+    
+    Attributes:
+        post (ForeignKey): The post being liked
+        user (ForeignKey): The user who created the like
+        created_at (DateTimeField): When the like was created
+    """
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='likes')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='likes')
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
-        unique_together = ['user', 'post']
-        
+        """Meta options for the Like model"""
+        unique_together = ('post', 'user')  # A user can only like a post once
+    
     def __str__(self):
-        return f"Like by {self.user.username} on Post {self.post.id}"
+        """Return a string representation of the like"""
+        return f"Like by {self.user.username} on {self.post}"
+    
+    def clean(self):
+        """Validate the like data"""
+        # Check if the user has already liked this post
+        if Like.objects.filter(post=self.post, user=self.user).exists() and not self.pk:
+            raise ValidationError("You have already liked this post.")
+    
+    def save(self, *args, **kwargs):
+        """Override save to ensure validation is called"""
+        self.clean()
+        super().save(*args, **kwargs)
+
 
 class Follow(models.Model):
-    follower = models.ForeignKey(User, related_name='following', on_delete=models.CASCADE)
-    following = models.ForeignKey(User, related_name='followers', on_delete=models.CASCADE)
+    """
+    Model representing a follow relationship between users.
+    
+    Attributes:
+        follower (ForeignKey): The user who is following
+        following (ForeignKey): The user being followed
+        created_at (DateTimeField): When the follow relationship was created
+    """
+    follower = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='following')
+    following = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='followers')
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
-        unique_together = ['follower', 'following']
-        
+        """Meta options for the Follow model"""
+        unique_together = ('follower', 'following')  # A user can only follow another user once
+    
     def __str__(self):
+        """Return a string representation of the follow relationship"""
         return f"{self.follower.username} follows {self.following.username}"
     
     def clean(self):
+        """Validate the follow data"""
+        # Prevent self-following
         if self.follower == self.following:
-            raise ValidationError("Users cannot follow themselves.")
+            raise ValidationError("You cannot follow yourself.")
+        
+        # Check if the follow relationship already exists
+        if Follow.objects.filter(follower=self.follower, following=self.following).exists() and not self.pk:
+            raise ValidationError("You are already following this user.")
+    
+    def save(self, *args, **kwargs):
+        """Override save to ensure validation is called"""
+        self.clean()
+        super().save(*args, **kwargs)
