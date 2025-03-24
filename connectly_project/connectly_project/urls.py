@@ -37,6 +37,7 @@ urlpatterns = [
     path('api-auth/', include('rest_framework.urls')),  # Adds login/logout to browsable API
     path('api/posts/', include('posts.urls')),
     path('accounts/', include('allauth.urls')),
+    path('auth/', include('users.urls')),
     path('api/', include(router.urls)),  # This will provide a root API view
     
     # Swagger documentation URLs
