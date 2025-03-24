@@ -160,7 +160,7 @@ CSRF_COOKIE_SECURE = False
 # Adjust REST_FRAMEWORK settings to allow browsing
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        # 'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
         'rest_framework.authentication.BasicAuthentication',
         # 'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
