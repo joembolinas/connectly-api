@@ -7,9 +7,16 @@ from users.models import CustomUser  # Import CustomUser from users app
 # The CustomUser model should only be defined in users/models.py
 
 class Post(models.Model):
+    PRIVACY_CHOICES = (
+        ('public', 'Public'),
+        ('private', 'Private'),
+        ('followers', 'Followers Only'),
+    )
+    
     content = models.TextField()  # The text content of the post
     author = models.ForeignKey(CustomUser, related_name='posts', on_delete=models.CASCADE)  # The user who created the post
     created_at = models.DateTimeField(auto_now_add=True)  # Timestamp when the post was created
+    privacy = models.CharField(max_length=10, choices=PRIVACY_CHOICES, default='public')
 
     class Meta:
         indexes = [
