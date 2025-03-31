@@ -9,6 +9,8 @@ from rest_framework.permissions import AllowAny
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from dj_rest_auth.registration.views import SocialLoginView
+from django.conf import settings
+import os
 
 class UserRegistrationView(APIView):
     """
@@ -57,5 +59,5 @@ class GoogleLoginView(SocialLoginView):
     Google OAuth2 authentication API endpoint
     """
     adapter_class = GoogleOAuth2Adapter
-    callback_url = 'http://localhost:8000/api/auth/google/callback/'
+    callback_url = os.getenv('GOOGLE_OAUTH_REDIRECT_URI')
     client_class = OAuth2Client
