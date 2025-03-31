@@ -228,9 +228,23 @@ ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_AUTHENTICATION_METHOD = 'email'
 
-# URLs
-LOGIN_REDIRECT_URL = '/'
+# URLs and Redirects
+LOGIN_URL = '/accounts/login/'
+LOGIN_REDIRECT_URL = '/api/'  # Redirect here after successful login
+LOGOUT_REDIRECT_URL = '/api/'  # Redirect here after logout
+HOME_URL = '/api/'  # Define home URL
+
+# Update AllAuth Settings
+ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = True
+ACCOUNT_LOGIN_ON_GET = True
+ACCOUNT_LOGOUT_ON_GET = True
+ACCOUNT_LOGIN_REDIRECT_URL = '/api/'
 ACCOUNT_LOGOUT_REDIRECT_URL = '/accounts/login/'
+
+# Social Account Settings
+SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_LOGIN_REDIRECT_URL = '/api/'
 
 # Email settings for development
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
