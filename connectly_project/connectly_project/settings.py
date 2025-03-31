@@ -55,10 +55,10 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     'rest_framework',
+    'rest_framework.authtoken',  # For token authentication
     'users',
     'posts',
     'django_extensions',
-    'rest_framework.authtoken',
     'rest_framework_simplejwt',
     'corsheaders',
     'django.contrib.sites',
@@ -168,6 +168,7 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.BasicAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.TokenAuthentication',  # Add this
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',  # Allow GET requests without authentication
@@ -212,7 +213,9 @@ SOCIALACCOUNT_PROVIDERS = {
         ],
         'AUTH_PARAMS': {
             'access_type': 'online',
-        }
+        },
+        # Redirect to frontend after authentication
+        'CALLBACK_URL': 'http://localhost:8000/api/auth/google/callback/',
     }
 }
 
@@ -248,3 +251,6 @@ CACHE_TTL = 60 * 15
 
 
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
+
+# Configure API-based authentication flow
+REST_USE_JWT = True
