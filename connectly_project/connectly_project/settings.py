@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 from posts.utils import Config
+import os
 
 config = Config()
 config.settings['DEBUG'] = True
@@ -197,8 +198,8 @@ SITE_ID = 1
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'APP': {
-            'client_id': '604100639579-0img4p4gfaio043bpfg5ekb75ac1ngod.apps.googleusercontent.com',
-            'secret': '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',
+            'client_id': os.environ.get('GOOGLE_CLIENT_ID', ''),
+            'secret': os.environ.get('GOOGLE_CLIENT_SECRET', ''),
             'key': ''
         },
         'SCOPE': [
