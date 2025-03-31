@@ -179,3 +179,4 @@ class NewsFeedView(APIView):
         
         serializer = PostSerializer(paginated_posts, many=True, context={'request': request})
         return paginator.get_paginated_response(serializer.data)
+

@@ -16,34 +16,35 @@ class Post(models.Model):
     privacy = models.CharField(max_length=10, choices=PRIVACY_CHOICES, default='public')
     
     def __str__(self):
-        return f"Post {self.id} by {self.author.username}"
+        return f"{self.author.username}'s post: {self.content[:30]}..."
     
     class Meta:
         ordering = ['-created_at']
 
 class Comment(models.Model):
     content = models.TextField()
-    post = models.ForeignKey(Post, related_name='comments', on_delete=models.CASCADE)
     author = models.ForeignKey(CustomUser, related_name='comments', on_delete=models.CASCADE)
-    parent = models.ForeignKey('self', null=True, blank=True, related_name='replies', on_delete=models.CASCADE)
+    post = models.ForeignKey(Post, related_name='comments', on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
+    parent = models.ForeignKey('self', null=True, blank=True, related_name='replies', on_delete=models.CASCADE)
     
     def __str__(self):
-        return f"Comment by {self.author.username} on Post {self.post.id}"
+        return f"Comment by {self.author.username} on {self.post}"
     
     class Meta:
-        ordering = ['created_at']
+        ordering = ['-created_at']
 
 class Like(models.Model):
-    post = models.ForeignKey(Post, related_name='likes', on_delete=models.CASCADE)
     user = models.ForeignKey(CustomUser, related_name='likes', on_delete=models.CASCADE)
+    post = models.ForeignKey(Post, related_name='likes', on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
-        unique_together = ('post', 'user')  # Prevent duplicate likes
-        
+        unique_together = ('user', 'post')
+        ordering = ['-created_at']
+    
     def __str__(self):
-        return f"Like by {self.user.username} on Post {self.post.id}"
+        return f"{self.user.username} likes {self.post}"
 
 class Follow(models.Model):
     follower = models.ForeignKey(CustomUser, related_name='following', on_delete=models.CASCADE)
@@ -51,7 +52,7 @@ class Follow(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
-        unique_together = ('follower', 'followed')  # Prevent duplicate follows
-        
+        unique_together = ('follower', 'followed')
+    
     def __str__(self):
         return f"{self.follower.username} follows {self.followed.username}"
