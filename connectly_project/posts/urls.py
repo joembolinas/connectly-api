@@ -5,7 +5,7 @@ from rest_framework.reverse import reverse
 from .views import (
     UserListCreate, PostListCreate, CommentListCreate,  # Include CommentListCreate here
     PostCommentList, PostLikeCreate, PostCommentCreate,
-    NewsFeedView, FollowUserView
+    NewsFeedView, FollowUserView, PostDetailView, PostDeleteView
 )
 
 @api_view(['GET'])
@@ -27,4 +27,6 @@ urlpatterns = [
     path('posts/<int:post_id>/like/', PostLikeCreate.as_view(), name='post-like-create'),
     path('feed/', NewsFeedView.as_view(), name='news-feed'),
     path('users/<int:user_id>/follow/', FollowUserView.as_view(), name='follow-user'),
+    path('posts/<int:post_id>/', PostDetailView.as_view(), name='post-detail'),
+    path('posts/<int:post_id>/delete/', PostDeleteView.as_view(), name='post-delete'),
 ]

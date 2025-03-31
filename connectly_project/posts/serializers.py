@@ -59,20 +59,9 @@ class CommentSerializer(serializers.ModelSerializer):
         raise serializers.ValidationError("Author must be authenticated")
 
 class PostSerializer(serializers.ModelSerializer):
-    author_username = serializers.ReadOnlyField(source='author.username')
-    like_count = serializers.SerializerMethodField()
-    comment_count = serializers.SerializerMethodField()
-    
     class Meta:
         model = Post
-        fields = ['id', 'content', 'author', 'author_username', 'created_at', 'privacy', 'like_count', 'comment_count']
-        read_only_fields = ['author', 'created_at']
-    
-    def get_like_count(self, obj):
-        return obj.likes.count()
-    
-    def get_comment_count(self, obj):
-        return obj.comments.count()
+        fields = ['id', 'author', 'content', 'privacy', 'created_at']
 
 class FollowSerializer(serializers.ModelSerializer):
     follower_username = serializers.ReadOnlyField(source='follower.username')

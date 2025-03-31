@@ -4,16 +4,15 @@ from django.conf import settings
 from users.models import CustomUser
 
 class Post(models.Model):
-    PRIVACY_CHOICES = (
+    PRIVACY_CHOICES = [
         ('public', 'Public'),
         ('private', 'Private'),
-        ('followers', 'Followers Only'),
-    )
-    
+    ]
+
+    author = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     content = models.TextField()
-    author = models.ForeignKey(CustomUser, related_name='posts', on_delete=models.CASCADE)
-    created_at = models.DateTimeField(auto_now_add=True)
     privacy = models.CharField(max_length=10, choices=PRIVACY_CHOICES, default='public')
+    created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
         return f"{self.author.username}'s post: {self.content[:30]}..."

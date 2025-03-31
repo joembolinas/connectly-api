@@ -10,10 +10,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.pagination import PageNumberPagination
 from django.db import models
+from rest_framework.exceptions import PermissionDenied, NotFound
 from .models import Post, Comment, Like, Follow
 from users.models import CustomUser
 from .serializers import UserSerializer, PostSerializer, CommentSerializer, LikeSerializer, FollowSerializer
-from .permissions import IsOwnerOrReadOnly, IsPostOwnerOrPublic
+from .permissions import IsOwnerOrReadOnly, IsPostOwnerOrPublic, IsAdminUser
 
 class StandardResultsPagination(PageNumberPagination):
     page_size = 10
@@ -179,4 +180,42 @@ class NewsFeedView(APIView):
         
         serializer = PostSerializer(paginated_posts, many=True, context={'request': request})
         return paginator.get_paginated_response(serializer.data)
+
+class PostDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, post_id):
+        post = get_object_or_404(Post, id=post_id)
+
+        # Check if the user is an admin
+        if not request.user.role == 'admin':
+            raise PermissionDenied("You do not have permission to delete this post.")
+
+        post.delete()
+        return Response({"message": "Post deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+
+class PostDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, post_id):
+        post = get_object_or_404(Post, id=post_id)
+
+        # Enforce privacy settings
+        if post.privacy == 'private' and post.author != request.user:
+            raise PermissionDenied("You do not have permission to view this post.")
+
+        serializer = PostSerializer(post)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+class FeedView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Retrieve posts based on privacy settings
+        posts = Post.objects.filter(
+            models.Q(privacy='public') |
+            models.Q(privacy='private', author=request.user)
+        )
+
+        return Response([{"id": post.id, "content": post.content, "privacy": post.privacy} for post in posts], status=status.HTTP_200_OK)
 
