@@ -197,8 +197,8 @@ SITE_ID = 1
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'APP': {
-            'client_id': 'your-google-client-id',  # Replace with your actual client ID
-            'secret': 'your-google-client-secret', # Replace with your actual secret
+            'client_id': '604100639579-0img4p4gfaio043bpfg5ekb75ac1ngod.apps.googleusercontent.com',
+            'secret': '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',
             'key': ''
         },
         'SCOPE': [
