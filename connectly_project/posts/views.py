@@ -1,7 +1,8 @@
 import json
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, csrf_protect
+from django.utils.decorators import method_decorator
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -11,6 +12,8 @@ from rest_framework.throttling import UserRateThrottle
 from rest_framework.pagination import PageNumberPagination
 from django.db import models
 from rest_framework.exceptions import PermissionDenied, NotFound
+from rest_framework.decorators import api_view
+from rest_framework.reverse import reverse
 from .models import Post, Comment, Like, Follow
 from users.models import CustomUser
 from .serializers import UserSerializer, PostSerializer, CommentSerializer, LikeSerializer, FollowSerializer
@@ -181,41 +184,66 @@ class NewsFeedView(APIView):
         serializer = PostSerializer(paginated_posts, many=True, context={'request': request})
         return paginator.get_paginated_response(serializer.data)
 
-class PostDeleteView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def delete(self, request, post_id):
-        post = get_object_or_404(Post, id=post_id)
-
-        # Check if the user is an admin
-        if not request.user.role == 'admin':
-            raise PermissionDenied("You do not have permission to delete this post.")
-
-        post.delete()
-        return Response({"message": "Post deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
-
+@method_decorator(csrf_protect, name='dispatch')
 class PostDetailView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsPostOwnerOrPublic]
 
     def get(self, request, post_id):
         post = get_object_or_404(Post, id=post_id)
-
-        # Enforce privacy settings
-        if post.privacy == 'private' and post.author != request.user:
-            raise PermissionDenied("You do not have permission to view this post.")
-
+        self.check_object_permissions(request, post)
         serializer = PostSerializer(post)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+@method_decorator(csrf_protect, name='dispatch')
+class PostDeleteView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def delete(self, request, post_id):
+        post = get_object_or_404(Post, id=post_id)
+        post.delete()
+        return Response({"message": "Post deleted successfully."}, 
+                       status=status.HTTP_204_NO_CONTENT)
+
 class FeedView(APIView):
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsPagination
 
     def get(self, request):
-        # Retrieve posts based on privacy settings
+        # Get posts based on privacy settings
         posts = Post.objects.filter(
             models.Q(privacy='public') |
             models.Q(privacy='private', author=request.user)
-        )
+        ).order_by('-created_at')
+        
+        paginator = self.pagination_class()
+        paginated_posts = paginator.paginate_queryset(posts, request)
+        serializer = PostSerializer(paginated_posts, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
-        return Response([{"id": post.id, "content": post.content, "privacy": post.privacy} for post in posts], status=status.HTTP_200_OK)
+@api_view(['GET'])
+def api_root(request, format=None):
+    """
+    API Root showing all available endpoints
+    """
+    return Response({
+        'auth': {
+            'register': reverse('user-registration', request=request, format=format),
+            'google-login': reverse('google-login', request=request, format=format),
+            'token': reverse('api_token_auth', request=request, format=format),
+            'jwt': reverse('token_obtain_pair', request=request, format=format),
+            'jwt-refresh': reverse('token_refresh', request=request, format=format),
+        },
+        'posts': {
+            'list': reverse('post-list-create', request=request, format=format),
+            'feed': reverse('feed', request=request, format=format),
+            'newsfeed': reverse('newsfeed', request=request, format=format),
+        },
+        'users': {
+            'list': reverse('user-list-create', request=request, format=format),
+        },
+        'docs': {
+            'swagger': reverse('schema-swagger-ui', request=request, format=format),
+            'redoc': reverse('schema-redoc', request=request, format=format),
+        }
+    })
 

@@ -8,6 +8,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from rest_framework import permissions
+from posts.views import api_root
 
 # Configure Swagger documentation
 schema_view = get_schema_view(
@@ -26,6 +27,9 @@ schema_view = get_schema_view(
 urlpatterns = [
     # Admin site
     path('admin/', admin.site.urls),
+    
+    # API root
+    path('api/', api_root, name='api-root'),
     
     # API endpoints
     path('api/posts/', include('posts.urls')),
