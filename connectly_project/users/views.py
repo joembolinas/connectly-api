@@ -6,6 +6,9 @@ from .models import CustomUser
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from rest_framework.permissions import AllowAny
+from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from allauth.socialaccount.providers.oauth2.client import OAuth2Client
+from dj_rest_auth.registration.views import SocialLoginView
 
 class UserRegistrationView(APIView):
     """
@@ -48,3 +51,11 @@ class UserRegistrationView(APIView):
             'username': user.username,
             'email': user.email
         }, status=status.HTTP_201_CREATED)
+
+class GoogleLoginView(SocialLoginView):
+    """
+    Google OAuth2 authentication API endpoint
+    """
+    adapter_class = GoogleOAuth2Adapter
+    callback_url = 'http://localhost:8000/api/auth/google/callback/'
+    client_class = OAuth2Client
