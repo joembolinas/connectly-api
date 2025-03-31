@@ -13,6 +13,10 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 from posts.utils import Config
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 config = Config()
 config.settings['DEBUG'] = True
