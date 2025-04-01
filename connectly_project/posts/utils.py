@@ -13,10 +13,22 @@ from django.core.cache import cache
 from django.conf import settings
 
 class CacheHelper:
+    """Helper for generating consistent cache keys"""
+    
     @staticmethod
-    def get_key(prefix, *args):
-        """Generate a cache key with prefix and args"""
-        return f"{prefix}:{':'.join(str(arg) for arg in args)}"
+    def get_key(prefix, user_id, page=1, page_size=10):
+        """Generate a cache key with prefix, user ID and pagination info"""
+        return f"{prefix}:user-{user_id}:page-{page}:size-{page_size}"
+    
+    @staticmethod
+    def get_feed_key(user_id, page=1, page_size=10):
+        """Generate a key for feed cache"""
+        return CacheHelper.get_key('feed', user_id, page, page_size)
+    
+    @staticmethod
+    def get_newsfeed_key(user_id, page=1, page_size=10):
+        """Generate a key for newsfeed cache"""
+        return CacheHelper.get_key('newsfeed', user_id, page, page_size)
     
     @staticmethod
     def get_or_set(key, function, timeout=None):

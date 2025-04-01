@@ -73,12 +73,17 @@ class PostListCreate(APIView):
     List all posts or create a new post
     """
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsPagination
     
     def get(self, request):
         posts = Post.objects.all()
-        serializer = PostSerializer(posts, many=True)
-        return Response(serializer.data)
-    
+        
+        paginator = self.pagination_class()
+        paginated_posts = paginator.paginate_queryset(posts, request)
+        
+        serializer = PostSerializer(paginated_posts, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
     @swagger_auto_schema(
         request_body=PostSerializer,
         operation_description="Create a new post",
