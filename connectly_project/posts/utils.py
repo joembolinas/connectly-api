@@ -27,3 +27,9 @@ class CacheHelper:
             value = function()
             cache.set(key, value, timeout=timeout)
         return value
+
+def is_debug_mode():
+    """
+    Check if application is running in debug mode
+    """
+    return settings.DEBUG

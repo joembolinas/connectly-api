@@ -1,22 +1,9 @@
 from django.urls import path
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from rest_framework.reverse import reverse
 from .views import (
     UserListCreate, PostListCreate, CommentListCreate,
     PostCommentList, PostLikeCreate, PostCommentCreate,
-    NewsFeedView, FollowUserView, PostDetailView, PostDeleteView, FeedView
+    FeedView, FollowUserView, PostDetailView, PostDeleteView, NewsFeedView, api_root
 )
-
-@api_view(['GET'])
-def api_root(request, format=None):
-    return Response({
-        'users': reverse('user-list-create', request=request, format=format),
-        'posts': reverse('post-list-create', request=request, format=format),
-        'comments': reverse('comment-list-create', request=request, format=format),
-        'feed': reverse('feed', request=request, format=format),
-        'newsfeed': reverse('newsfeed', request=request, format=format),
-    })
 
 urlpatterns = [
     # User endpoints
