@@ -15,6 +15,7 @@ from rest_framework.decorators import api_view
 from rest_framework.reverse import reverse
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from collections import OrderedDict
 from .models import Post, Comment, Like, Follow
 from users.models import CustomUser
 from .serializers import UserSerializer, PostSerializer, CommentSerializer, LikeSerializer, FollowSerializer
@@ -25,6 +26,16 @@ class StandardResultsPagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'page_size'
     max_page_size = 100
+    
+    def get_paginated_response(self, data):
+        return Response(OrderedDict([
+            ('count', self.page.paginator.count),
+            ('next', self.get_next_link()),
+            ('previous', self.get_previous_link()),
+            ('current_page', self.page.number),
+            ('total_pages', self.page.paginator.num_pages),
+            ('results', data)
+        ]))
 
 class UserListCreate(APIView):
     """
