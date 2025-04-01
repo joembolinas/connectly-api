@@ -80,6 +80,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',  # Add this line
     'posts.middleware.RoleMiddleware',  # If you have this custom middleware
+    'posts.middleware.PerformanceMiddleware',
 ]
 
 # CSRF settings
@@ -239,11 +240,8 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 # Redis cache configuration
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/1",
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        }
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "unique-snowflake",
     }
 }
 
@@ -255,3 +253,33 @@ SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
 # Configure API-based authentication flow
 REST_USE_JWT = True
+
+# Logging configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': 'api_performance.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'api.performance': {
+            'handlers': ['console', 'file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
+}
