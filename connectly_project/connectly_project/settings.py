@@ -240,16 +240,24 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 # Redis cache configuration
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "unique-snowflake",
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "PARSER_CLASS": "redis.connection.HiredisParser",
+            "COMPRESSOR": "django_redis.compressors.zlib.ZlibCompressor",
+            "IGNORE_EXCEPTIONS": True,
+        }
     }
 }
 
-# Cache time to live in seconds (1 minute)
-CACHE_TTL = 60
+# Cache time to live in seconds - different for different types of data
+CACHE_TTL = 60  # 1 minute - general default
+CACHE_TTL_FEED = 300  # 5 minutes - feeds cache longer
+CACHE_TTL_USER = 1800  # 30 minutes - user data changes less frequently
 
-
-SESSION_ENGINE = "django.contrib.sessions.backends.db"
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
 
 # Configure API-based authentication flow
 REST_USE_JWT = True

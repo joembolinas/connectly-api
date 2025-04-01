@@ -16,13 +16,26 @@ from rest_framework.reverse import reverse
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from collections import OrderedDict
-from django.core.cache import cache
+from django.core.cache import cache, caches
 from django.conf import settings
+from django_redis import get_redis_connection
+import time
+from urllib.parse import urlsplit, urlunsplit, parse_qs, urlencode
 from .models import Post, Comment, Like, Follow
 from users.models import CustomUser
 from .serializers import UserSerializer, PostSerializer, CommentSerializer, LikeSerializer, FollowSerializer
 from .permissions import IsOwnerOrReadOnly, IsPostOwnerOrPublic, IsAdminUser
-from .utils import is_debug_mode, CacheHelper
+from .utils import is_debug_mode, CacheHelper, get_user_feed_posts, get_user_newsfeed_posts
+
+def replace_query_param(url, key, val):
+    """
+    Given a URL and a key/val pair, set or replace an item in the query parameters.
+    """
+    (scheme, netloc, path, query, fragment) = urlsplit(url)
+    query_dict = parse_qs(query, keep_blank_values=True)
+    query_dict[key] = [val]
+    query = urlencode(query_dict, doseq=True)
+    return urlunsplit((scheme, netloc, path, query, fragment))
 
 class StandardResultsPagination(PageNumberPagination):
     page_size = 10
@@ -99,17 +112,18 @@ class PostListCreate(APIView):
         if serializer.is_valid():
             post = serializer.save(author=request.user)
             
-            # Invalidate feed caches when new post is created
-            # Clear the user's own feed and newsfeed caches
-            # Replace cache.delete_pattern with individual deletes
-            cache.delete(f"feed:user-{request.user.id}:page-1:size-10")
-            cache.delete(f"newsfeed:user-{request.user.id}:page-1:size-10")
+            # With django-redis, we can now use wildcards for deletion
+            cache_client = caches['default']
+            
+            # Clear the user's own feed and newsfeed caches using patterns
+            cache_client.delete_pattern(CacheHelper.get_key_pattern('feed', request.user.id))
+            cache_client.delete_pattern(CacheHelper.get_key_pattern('newsfeed', request.user.id))
             
             # Clear newsfeed caches for all followers
             followers = Follow.objects.filter(followed=request.user).values_list('follower_id', flat=True)
             for follower_id in followers:
-                cache.delete(f"feed:user-{follower_id}:page-1:size-10")
-                cache.delete(f"newsfeed:user-{follower_id}:page-1:size-10")
+                cache_client.delete_pattern(CacheHelper.get_key_pattern('feed', follower_id))
+                cache_client.delete_pattern(CacheHelper.get_key_pattern('newsfeed', follower_id))
             
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -319,50 +333,45 @@ class PostDeleteView(APIView):
 
 class FeedView(APIView):
     permission_classes = [IsAuthenticated]
-    pagination_class = StandardResultsPagination
-
+    
     def get(self, request):
-        # Create a user-specific cache key
-        page = request.query_params.get('page', 1)
-        page_size = request.query_params.get('page_size', 10)
-        cache_key = CacheHelper.get_feed_key(request.user.id, page, page_size)
+        # Get parameters
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
         
-        # Try to get from cache first
-        cached_data = cache.get(cache_key)
-        if cached_data:
-            return Response(cached_data)
+        # Use cached query function
+        feed_data = get_user_feed_posts(request.user, page=page, page_size=page_size)
         
-        # Get posts based on privacy settings with select_related for author
-        posts = Post.objects.select_related('author').filter(
-            models.Q(privacy='public') |
-            models.Q(privacy='private', author=request.user)
-        ).order_by('-created_at')
+        # Serialize the results
+        serializer = PostSerializer(feed_data['results'], many=True, context={'request': request})
         
-        # Adding annotations for counts - CORRECTED FIELD NAMES
-        posts = posts.annotate(
-            like_count=models.Count('likes', distinct=True),
-            comment_count=models.Count('comments', distinct=True)
-        )
-        
-        paginator = self.pagination_class()
-        paginated_posts = paginator.paginate_queryset(posts, request)
-        serializer = PostSerializer(paginated_posts, many=True)
-        
-        # Get paginated response
+        # Build response with pagination info
         response_data = OrderedDict([
-            ('count', paginator.page.paginator.count),
-            ('next', paginator.get_next_link()),
-            ('previous', paginator.get_previous_link()),
-            ('current_page', paginator.page.number),
-            ('total_pages', paginator.page.paginator.num_pages),
+            ('count', feed_data['count']),
+            ('next', self.get_next_link(feed_data, request)),
+            ('previous', self.get_previous_link(feed_data, request)),
+            ('current_page', feed_data['current_page']),
+            ('total_pages', feed_data['num_pages']),
             ('results', serializer.data)
         ])
         
-        # Cache the result
-        cache_ttl = getattr(settings, 'CACHE_TTL', 60)
-        cache.set(cache_key, response_data, timeout=cache_ttl)
-        
         return Response(response_data)
+    
+    def get_next_link(self, feed_data, request):
+        if not feed_data['has_next']:
+            return None
+            
+        url = request.build_absolute_uri()
+        page = feed_data['current_page'] + 1
+        return replace_query_param(url, 'page', page)
+        
+    def get_previous_link(self, feed_data, request):
+        if not feed_data['has_previous']:
+            return None
+            
+        url = request.build_absolute_uri()
+        page = feed_data['current_page'] - 1
+        return replace_query_param(url, 'page', page)
 
 @api_view(['GET'])
 def api_root(request, format=None):
