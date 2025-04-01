@@ -50,7 +50,6 @@ class Like(models.Model):
     
     class Meta:
         unique_together = ('user', 'post')
-        ordering = ['-created_at']
         indexes = [
             models.Index(fields=['post']),
             models.Index(fields=['user']),

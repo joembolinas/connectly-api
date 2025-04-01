@@ -1,153 +1,19 @@
-### API Root
-GET http://127.0.0.1:8000/api/
+# Test pagination
+GET http://127.0.0.1:8000/api/posts/feed/?page=1&page_size=5
 
-### 1. Authentication Endpoints
+# Test caching
+GET http://127.0.0.1:8000/api/posts/feed/
+# Second request should be faster
 
-### Register new user
-POST http://127.0.0.1:8000/api/auth/register/
-Content-Type: application/json
-
-{
-    "username": "testuser",
-    "email": "testuser@example.com",
-    "password": "SecurePass123!",
-    "password2": "SecurePass123!"
-}
-
-### Register admin user
-POST http://127.0.0.1:8000/api/auth/register/
-Content-Type: application/json
-
-{
-    "username": "adminuser",
-    "email": "admin@example.com",
-    "password": "AdminPass123!",
-    "password2": "AdminPass123!"
-}
-
-### Obtain JWT Token
-POST http://127.0.0.1:8000/api/auth/jwt/
-Content-Type: application/json
-
-{
-    "username": "admin",
-    "password": "admin@123456"
-}
-
-### Store the token from the response above
-@authToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQzNDQ1MDc1LCJpYXQiOjE3NDM0NDI5NDksImp0aSI6ImZkYzdlODc4MDIyYTQ0MzI4MzcyZTY2YmQ4ZmRhNGZmIiwidXNlcl9pZCI6NH0.kiaqvB_GEL3VX4Lz5j0I1sE6DNZxqnxrcobwzc00gwU"
-
-### Refresh JWT Token
-POST http://127.0.0.1:8000/api/auth/jwt/refresh/
-Content-Type: application/json
-
-{
-    "refresh":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc0MzUyOTM0OSwiaWF0IjoxNzQzNDQyOTQ5LCJqdGkiOiIyMGNlYTM0MmFmYjg0NDI0OTk0ZTZmOWMxMTgxZDdmMCIsInVzZXJfaWQiOjR9.YoWLglMk2fyTA16W-xakT0wxaGt-V1hoOmw86Afy3l4"
-}
-
-### Google OAuth Login
-POST http://127.0.0.1:8000/api/auth/google/login/
-Content-Type: application/json
-
-{
-    "access_token": "https://accounts.google.com/o/oauth2/auth",
-    "code": "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",
-    "id_token": "google-id-token"
-}
-
-### 2. Post Endpoints
-
-### List all posts
-GET http://127.0.0.1:8000/api/posts/posts/
-Authorization: Bearer {{authToken}}
-
-### Create new post (public)
+# Test creating a post and cache invalidation
 POST http://127.0.0.1:8000/api/posts/posts/
-Authorization: Bearer {{authToken}}
 Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
 
 {
-    "content": "This is a public test post",
+    "content": "Testing cache invalidation",
     "privacy": "public"
 }
 
-### Create new post (private)
-POST http://127.0.0.1:8000/api/posts/posts/
-Authorization: Bearer {{authToken}}
-Content-Type: application/json
-
-{
-    "content": "This is a private test post",
-    "privacy": "private"
-}
-
-### Get specific post
-GET http://127.0.0.1:8000/api/posts/posts/1/
-Authorization: Bearer {{authToken}}
-
-### Delete post (admin only)
-DELETE http://127.0.0.1:8000/api/posts/posts/1/delete/
-Authorization: Bearer {{authToken}}
-
-### 3. Comment Endpoints
-
-### List comments for a post
-GET http://127.0.0.1:8000/api/posts/posts/1/comments/
-Authorization: Bearer {{authToken}}
-
-### Add comment to post
-POST http://127.0.0.1:8000/api/posts/posts/1/comment/
-Authorization: Bearer {{authToken}}
-Content-Type: application/json
-
-{
-    "content": "This is a test comment"
-}
-
-### 4. Like Endpoints
-
-### Like/Unlike post
-POST http://127.0.0.1:8000/api/posts/posts/1/like/
-Authorization: Bearer {{authToken}}
-
-### 5. Follow Endpoints
-
-### Follow user
-POST http://127.0.0.1:8000/api/posts/follow/2/
-Authorization: Bearer {{authToken}}
-
-### 6. Feed Endpoints
-
-### Get general feed
+# Test annotated fields
 GET http://127.0.0.1:8000/api/posts/feed/
-Authorization: Bearer {{authToken}}
-
-### Get personalized news feed
-GET http://127.0.0.1:8000/api/posts/newsfeed/
-Authorization: Bearer {{authToken}}
-
-### 7. Test Privacy Settings
-
-### Try accessing private post as non-owner
-GET http://127.0.0.1:8000/api/posts/posts/2/
-Authorization: Bearer {{authToken}}
-
-### 8. Test Role-Based Access
-
-### Try deleting post as non-admin
-DELETE http://127.0.0.1:8000/api/posts/posts/1/delete/
-Authorization: Bearer {{authToken}}
-
-### Try deleting post as admin
-DELETE http://127.0.0.1:8000/api/posts/posts/1/delete/
-Authorization: Bearer {{adminToken}}
-
-### 9. Pagination Tests
-
-### Get paginated posts
-GET http://127.0.0.1:8000/api/posts/posts/?page=1&page_size=5
-Authorization: Bearer {{authToken}}
-
-### Get paginated feed
-GET http://127.0.0.1:8000/api/posts/feed/?page=1&page_size=5
-Authorization: Bearer {{authToken}}
