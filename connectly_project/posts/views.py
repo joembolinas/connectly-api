@@ -9,7 +9,7 @@ from rest_framework.authentication import TokenAuthentication, SessionAuthentica
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.pagination import PageNumberPagination
-from django.db import models
+from django.db import models, transaction
 from rest_framework.exceptions import PermissionDenied, NotFound
 from rest_framework.decorators import api_view
 from rest_framework.reverse import reverse
@@ -229,6 +229,209 @@ class PostLikeCreate(APIView):
             like = Like.objects.create(user=request.user, post=post)
             serializer = LikeSerializer(like)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+@method_decorator(csrf_protect, name='dispatch')
+class BulkLikeView(APIView):
+    """Process multiple post likes in a single operation"""
+    permission_classes = [IsAuthenticated]
+    
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['post_ids'],
+            properties={
+                'post_ids': openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Schema(type=openapi.TYPE_INTEGER),
+                    description='List of post IDs to like'
+                ),
+                'action': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='Action to perform: "like" or "unlike"',
+                    enum=['like', 'unlike'],
+                    default='like'
+                ),
+            }
+        ),
+        operation_description="Process likes/unlikes for multiple posts in a single operation",
+        responses={
+            200: openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'processed': openapi.Schema(type=openapi.TYPE_INTEGER),
+                    'action': openapi.Schema(type=openapi.TYPE_STRING),
+                }
+            )
+        }
+    )
+    @transaction.atomic
+    def post(self, request):
+        # Get parameters
+        post_ids = request.data.get('post_ids', [])
+        action = request.data.get('action', 'like')
+        
+        if not post_ids:
+            return Response(
+                {"error": "No post_ids provided"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # Limit batch size for security/performance
+        if len(post_ids) > 100:
+            return Response(
+                {"error": "Maximum 100 posts can be processed in one request"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # For like action
+        if action == 'like':
+            # Get existing likes to avoid duplicates
+            existing_likes = Like.objects.filter(
+                user=request.user, 
+                post_id__in=post_ids
+            ).values_list('post_id', flat=True)
+            
+            # Create likes for posts that don't have them yet
+            new_likes = []
+            for post_id in post_ids:
+                if post_id not in existing_likes:
+                    new_likes.append(Like(user=request.user, post_id=post_id))
+            
+            # Bulk create the new likes
+            if new_likes:
+                Like.objects.bulk_create(new_likes, ignore_conflicts=True)
+            
+            processed = len(new_likes)
+            
+        # For unlike action
+        elif action == 'unlike':
+            # Bulk delete the likes
+            result = Like.objects.filter(
+                user=request.user, 
+                post_id__in=post_ids
+            ).delete()
+            
+            processed = result[0]  # Number of deleted objects
+            
+        else:
+            return Response(
+                {"error": "Invalid action. Use 'like' or 'unlike'."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Clear caches that might be affected
+        cache_client = caches['default']
+        cache_client.delete_pattern(CacheHelper.get_key_pattern('feed', request.user.id))
+        
+        return Response({
+            "processed": processed,
+            "action": action
+        })
+
+@method_decorator(csrf_protect, name='dispatch')
+class BulkFollowView(APIView):
+    """Process multiple user follows in a single operation"""
+    permission_classes = [IsAuthenticated]
+    
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['user_ids'],
+            properties={
+                'user_ids': openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Schema(type=openapi.TYPE_INTEGER),
+                    description='List of user IDs to follow/unfollow'
+                ),
+                'action': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='Action to perform: "follow" or "unfollow"',
+                    enum=['follow', 'unfollow'],
+                    default='follow'
+                ),
+            }
+        ),
+        operation_description="Process follows/unfollows for multiple users in a single operation",
+        responses={
+            200: openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'processed': openapi.Schema(type=openapi.TYPE_INTEGER),
+                    'action': openapi.Schema(type=openapi.TYPE_STRING),
+                }
+            )
+        }
+    )
+    @transaction.atomic
+    def post(self, request):
+        # Get parameters
+        user_ids = request.data.get('user_ids', [])
+        action = request.data.get('action', 'follow')
+        
+        if not user_ids:
+            return Response(
+                {"error": "No user_ids provided"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # Limit batch size for security/performance
+        if len(user_ids) > 100:
+            return Response(
+                {"error": "Maximum 100 users can be processed in one request"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Make sure user doesn't try to follow themselves
+        if request.user.id in user_ids:
+            return Response(
+                {"error": "You cannot follow yourself"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # For follow action
+        if action == 'follow':
+            # Get existing follows to avoid duplicates
+            existing_follows = Follow.objects.filter(
+                follower=request.user, 
+                followed_id__in=user_ids
+            ).values_list('followed_id', flat=True)
+            
+            # Create follows for users that don't have them yet
+            new_follows = []
+            for user_id in user_ids:
+                if user_id not in existing_follows:
+                    new_follows.append(Follow(follower=request.user, followed_id=user_id))
+            
+            # Bulk create the new follows
+            if new_follows:
+                Follow.objects.bulk_create(new_follows, ignore_conflicts=True)
+            
+            processed = len(new_follows)
+            
+        # For unfollow action
+        elif action == 'unfollow':
+            # Bulk delete the follows
+            result = Follow.objects.filter(
+                follower=request.user, 
+                followed_id__in=user_ids
+            ).delete()
+            
+            processed = result[0]  # Number of deleted objects
+            
+        else:
+            return Response(
+                {"error": "Invalid action. Use 'follow' or 'unfollow'."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Clear caches that might be affected
+        cache_client = caches['default']
+        cache_client.delete_pattern(CacheHelper.get_key_pattern('newsfeed', request.user.id))
+        
+        return Response({
+            "processed": processed,
+            "action": action
+        })
 
 class FollowUserView(APIView):
     """

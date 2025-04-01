@@ -2,7 +2,8 @@ from django.urls import path
 from .views import (
     UserListCreate, PostListCreate, CommentListCreate,
     PostCommentList, PostLikeCreate, PostCommentCreate,
-    FeedView, FollowUserView, PostDetailView, PostDeleteView, NewsFeedView, api_root
+    FeedView, FollowUserView, PostDetailView, PostDeleteView, NewsFeedView, api_root,
+    BulkLikeView, BulkFollowView
 )
 
 urlpatterns = [
@@ -27,4 +28,8 @@ urlpatterns = [
     
     # Follow endpoints
     path('follow/<int:user_id>/', FollowUserView.as_view(), name='follow-user'),
+    
+    # Add new batch endpoints
+    path('bulk/likes/', BulkLikeView.as_view(), name='bulk-likes'),
+    path('bulk/follows/', BulkFollowView.as_view(), name='bulk-follows'),
 ]

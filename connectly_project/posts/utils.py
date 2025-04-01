@@ -14,6 +14,8 @@ from django.conf import settings
 import hashlib
 import json
 from functools import wraps
+from django.db import connection, transaction
+import time
 
 class CacheHelper:
     """Helper for cache operations with versioning and patterns"""
@@ -179,3 +181,57 @@ def get_user_newsfeed_posts(user, page=1, page_size=10):
         'has_next': posts_page.has_next(),
         'has_previous': posts_page.has_previous(),
     }
+
+class BatchProcessor:
+    """Utility for processing large datasets in batches"""
+    
+    @staticmethod
+    def process_in_batches(queryset, batch_size, processing_func, *args, **kwargs):
+        """
+        Process a queryset in batches to avoid loading everything into memory
+        
+        Args:
+            queryset: The base queryset to process
+            batch_size: Number of objects to process in each batch
+            processing_func: Function to call for each batch
+            *args, **kwargs: Additional arguments for processing_func
+        
+        Returns:
+            Total processed count
+        """
+        total_processed = 0
+        # Get the primary key name
+        pk_name = queryset.model._meta.pk.name
+        
+        # Start with no offset
+        last_pk = None
+        
+        while True:
+            # Clone the queryset to avoid modifying the original
+            batch_qs = queryset
+            
+            if last_pk is not None:
+                # Filter queryset to get next batch
+                batch_qs = batch_qs.filter(**{f'{pk_name}__gt': last_pk})
+            
+            # Order by pk to ensure consistent batches
+            batch_qs = batch_qs.order_by(pk_name)[:batch_size]
+            
+            # Materialize the batch
+            batch = list(batch_qs)
+            
+            # If we got an empty batch, we're done
+            if not batch:
+                break
+                
+            # Process this batch
+            processed = processing_func(batch, *args, **kwargs)
+            total_processed += processed
+            
+            # Get the last PK in this batch
+            last_pk = getattr(batch[-1], pk_name)
+            
+            # Optional: Sleep briefly to avoid database contention
+            time.sleep(0.01)
+            
+        return total_processed
