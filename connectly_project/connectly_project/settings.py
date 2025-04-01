@@ -239,17 +239,16 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 # Redis cache configuration
 CACHES = {
     "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/1",  # Use redis://redis:6379/1 for Docker
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "IGNORE_EXCEPTIONS": True,  # Redis is not mandatory for the app to work
         }
     }
 }
 
-# Cache timeout in seconds (15 minutes)
-CACHE_TTL = 60 * 15
+# Cache time to live in seconds (1 minute)
+CACHE_TTL = 60
 
 
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
