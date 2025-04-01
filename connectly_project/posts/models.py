@@ -9,7 +9,7 @@ class Post(models.Model):
         ('private', 'Private'),
     ]
 
-    author = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     content = models.TextField()
     privacy = models.CharField(max_length=10, choices=PRIVACY_CHOICES, default='public')
     created_at = models.DateTimeField(auto_now_add=True)

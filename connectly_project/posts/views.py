@@ -13,6 +13,8 @@ from django.db import models
 from rest_framework.exceptions import PermissionDenied, NotFound
 from rest_framework.decorators import api_view
 from rest_framework.reverse import reverse
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 from .models import Post, Comment, Like, Follow
 from users.models import CustomUser
 from .serializers import UserSerializer, PostSerializer, CommentSerializer, LikeSerializer, FollowSerializer
@@ -33,6 +35,21 @@ class UserListCreate(APIView):
         serializer = UserSerializer(users, many=True)
         return Response(serializer.data)
     
+    @swagger_auto_schema(
+        request_body=UserSerializer,
+        operation_description="Create a new user account",
+        request_body_example={
+            "username": "newuser123",
+            "email": "newuser@example.com",
+            "password": "SecurePass123!",
+            "first_name": "New",
+            "last_name": "User"
+        },
+        responses={
+            201: UserSerializer,
+            400: "Bad Request - Invalid data"
+        }
+    )
     def post(self, request, format=None):
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
@@ -45,19 +62,22 @@ class PostListCreate(APIView):
     List all posts or create a new post
     """
     permission_classes = [IsAuthenticated]
-    pagination_class = StandardResultsPagination
     
-    def get(self, request, format=None):
-        posts = Post.objects.all().order_by('-created_at')
-        
-        paginator = self.pagination_class()
-        paginated_posts = paginator.paginate_queryset(posts, request)
-        
-        serializer = PostSerializer(paginated_posts, many=True)
-        return paginator.get_paginated_response(serializer.data)
+    def get(self, request):
+        posts = Post.objects.all()
+        serializer = PostSerializer(posts, many=True)
+        return Response(serializer.data)
     
-    def post(self, request, format=None):
-        serializer = PostSerializer(data=request.data, context={'request': request})
+    @swagger_auto_schema(
+        request_body=PostSerializer,
+        operation_description="Create a new post",
+        request_body_example={
+            "content": "This is a sample post content",
+            "privacy": "public"
+        }
+    )
+    def post(self, request):
+        serializer = PostSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(author=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -103,6 +123,33 @@ class PostCommentCreate(APIView):
     """
     permission_classes = [IsAuthenticated]
     
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['content'],
+            properties={
+                'content': openapi.Schema(
+                    type=openapi.TYPE_STRING, 
+                    description='Content of the comment'
+                ),
+            }
+        ),
+        operation_description="Create a new comment on a specific post",
+        manual_parameters=[
+            openapi.Parameter(
+                'post_id',
+                openapi.IN_PATH,
+                description="ID of the post to comment on",
+                type=openapi.TYPE_INTEGER,
+                required=True
+            ),
+        ],
+        responses={
+            201: CommentSerializer,
+            400: "Bad Request - Invalid data",
+            404: "Not Found - Post doesn't exist"
+        }
+    )
     def post(self, request, post_id, format=None):
         post = get_object_or_404(Post, id=post_id)
         serializer = CommentSerializer(data=request.data)
