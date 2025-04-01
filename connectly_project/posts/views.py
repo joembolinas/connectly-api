@@ -16,11 +16,13 @@ from rest_framework.reverse import reverse
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from collections import OrderedDict
+from django.core.cache import cache
+from django.conf import settings
 from .models import Post, Comment, Like, Follow
 from users.models import CustomUser
 from .serializers import UserSerializer, PostSerializer, CommentSerializer, LikeSerializer, FollowSerializer
 from .permissions import IsOwnerOrReadOnly, IsPostOwnerOrPublic, IsAdminUser
-from .utils import is_debug_mode
+from .utils import is_debug_mode, CacheHelper
 
 class StandardResultsPagination(PageNumberPagination):
     page_size = 10
@@ -272,6 +274,16 @@ class FeedView(APIView):
     pagination_class = StandardResultsPagination
 
     def get(self, request):
+        # Create a user-specific cache key
+        page = request.query_params.get('page', 1)
+        page_size = request.query_params.get('page_size', 10)
+        cache_key = CacheHelper.get_feed_key(request.user.id, page, page_size)
+        
+        # Try to get from cache first
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return Response(cached_data)
+        
         # Get posts based on privacy settings
         posts = Post.objects.filter(
             models.Q(privacy='public') |
@@ -281,7 +293,22 @@ class FeedView(APIView):
         paginator = self.pagination_class()
         paginated_posts = paginator.paginate_queryset(posts, request)
         serializer = PostSerializer(paginated_posts, many=True)
-        return paginator.get_paginated_response(serializer.data)
+        
+        # Get paginated response
+        response_data = OrderedDict([
+            ('count', paginator.page.paginator.count),
+            ('next', paginator.get_next_link()),
+            ('previous', paginator.get_previous_link()),
+            ('current_page', paginator.page.number),
+            ('total_pages', paginator.page.paginator.num_pages),
+            ('results', serializer.data)
+        ])
+        
+        # Cache the result (60 seconds by default, can be configured in settings)
+        cache_ttl = getattr(settings, 'CACHE_TTL', 60)
+        cache.set(cache_key, response_data, timeout=cache_ttl)
+        
+        return Response(response_data)
 
 @api_view(['GET'])
 def api_root(request, format=None):
