@@ -139,7 +139,11 @@ class PostCommentList(APIView):
     
     def get(self, request, post_id, format=None):
         post = get_object_or_404(Post, id=post_id)
-        comments = Comment.objects.filter(post=post).order_by('-created_at')
+        
+        # Use select_related to prefetch author data
+        comments = Comment.objects.select_related('author', 'post').filter(
+            post=post
+        ).order_by('-created_at')
         
         paginator = self.pagination_class()
         paginated_comments = paginator.paginate_queryset(comments, request)
@@ -245,21 +249,52 @@ class NewsFeedView(APIView):
     pagination_class = StandardResultsPagination
     
     def get(self, request, format=None):
+        # Create a user-specific cache key
+        page = request.query_params.get('page', 1)
+        page_size = request.query_params.get('page_size', 10)
+        cache_key = CacheHelper.get_newsfeed_key(request.user.id, page, page_size)
+        
+        # Try to get from cache first
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return Response(cached_data)
+            
         user = request.user
         
         # Get users that the current user follows
         followed_users = Follow.objects.filter(follower=user).values_list('followed', flat=True)
         
-        # Get posts from followed users and user's own posts
-        feed_posts = Post.objects.filter(
+        # Get posts with optimized queries
+        feed_posts = Post.objects.select_related('author').filter(
             models.Q(author__in=followed_users) | models.Q(author=user)
         ).order_by('-created_at')
+        
+        # Add annotated fields for performance
+        feed_posts = feed_posts.annotate(
+            like_count=models.Count('like', distinct=True),
+            comment_count=models.Count('comment', distinct=True)
+        )
         
         paginator = self.pagination_class()
         paginated_posts = paginator.paginate_queryset(feed_posts, request)
         
         serializer = PostSerializer(paginated_posts, many=True, context={'request': request})
-        return paginator.get_paginated_response(serializer.data)
+        
+        # Get paginated response
+        response_data = OrderedDict([
+            ('count', paginator.page.paginator.count),
+            ('next', paginator.get_next_link()),
+            ('previous', paginator.get_previous_link()),
+            ('current_page', paginator.page.number),
+            ('total_pages', paginator.page.paginator.num_pages),
+            ('results', serializer.data)
+        ])
+        
+        # Cache the result
+        cache_ttl = getattr(settings, 'CACHE_TTL', 60)
+        cache.set(cache_key, response_data, timeout=cache_ttl)
+        
+        return Response(response_data)
 
 @method_decorator(csrf_protect, name='dispatch')
 class PostDetailView(APIView):
@@ -296,11 +331,17 @@ class FeedView(APIView):
         if cached_data:
             return Response(cached_data)
         
-        # Get posts based on privacy settings
-        posts = Post.objects.filter(
+        # Get posts based on privacy settings with select_related for author
+        posts = Post.objects.select_related('author').filter(
             models.Q(privacy='public') |
             models.Q(privacy='private', author=request.user)
         ).order_by('-created_at')
+        
+        # Adding annotations for counts
+        posts = posts.annotate(
+            like_count=models.Count('like', distinct=True),
+            comment_count=models.Count('comment', distinct=True)
+        )
         
         paginator = self.pagination_class()
         paginated_posts = paginator.paginate_queryset(posts, request)
@@ -316,7 +357,7 @@ class FeedView(APIView):
             ('results', serializer.data)
         ])
         
-        # Cache the result (60 seconds by default, can be configured in settings)
+        # Cache the result
         cache_ttl = getattr(settings, 'CACHE_TTL', 60)
         cache.set(cache_key, response_data, timeout=cache_ttl)
         
