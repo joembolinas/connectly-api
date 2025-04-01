@@ -97,7 +97,19 @@ class PostListCreate(APIView):
     def post(self, request):
         serializer = PostSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save(author=request.user)
+            post = serializer.save(author=request.user)
+            
+            # Invalidate feed caches when new post is created
+            # Clear the user's own feed and newsfeed caches
+            cache.delete_pattern(f"feed:user-{request.user.id}:*")
+            cache.delete_pattern(f"newsfeed:user-{request.user.id}:*")
+            
+            # Clear newsfeed caches for all followers
+            followers = Follow.objects.filter(followed=request.user).values_list('follower_id', flat=True)
+            for follower_id in followers:
+                cache.delete_pattern(f"feed:user-{follower_id}:*")
+                cache.delete_pattern(f"newsfeed:user-{follower_id}:*")
+            
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
