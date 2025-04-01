@@ -269,10 +269,10 @@ class NewsFeedView(APIView):
             models.Q(author__in=followed_users) | models.Q(author=user)
         ).order_by('-created_at')
         
-        # Add annotated fields for performance
+        # Add annotated fields for performance - CORRECTED FIELD NAMES
         feed_posts = feed_posts.annotate(
-            like_count=models.Count('like', distinct=True),
-            comment_count=models.Count('comment', distinct=True)
+            like_count=models.Count('likes', distinct=True),
+            comment_count=models.Count('comments', distinct=True)
         )
         
         paginator = self.pagination_class()
@@ -337,10 +337,10 @@ class FeedView(APIView):
             models.Q(privacy='private', author=request.user)
         ).order_by('-created_at')
         
-        # Adding annotations for counts
+        # Adding annotations for counts - CORRECTED FIELD NAMES
         posts = posts.annotate(
-            like_count=models.Count('like', distinct=True),
-            comment_count=models.Count('comment', distinct=True)
+            like_count=models.Count('likes', distinct=True),
+            comment_count=models.Count('comments', distinct=True)
         )
         
         paginator = self.pagination_class()
