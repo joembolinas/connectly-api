@@ -237,27 +237,16 @@ SOCIALACCOUNT_LOGIN_REDIRECT_URL = '/api/'
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 
-# Redis cache configuration
+# Redis cache configuration replaced with database sessions
 CACHES = {
     "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/1",
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "PARSER_CLASS": "redis.connection.HiredisParser",
-            "COMPRESSOR": "django_redis.compressors.zlib.ZlibCompressor",
-            "IGNORE_EXCEPTIONS": True,
-        }
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "django_cache",
     }
 }
 
-# Cache time to live in seconds - different for different types of data
-CACHE_TTL = 60  # 1 minute - general default
-CACHE_TTL_FEED = 300  # 5 minutes - feeds cache longer
-CACHE_TTL_USER = 1800  # 30 minutes - user data changes less frequently
-
-SESSION_ENGINE = "django.contrib.sessions.backends.cache"
-SESSION_CACHE_ALIAS = "default"
+# Change the session engine to use the database instead of cache
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
 # Configure API-based authentication flow
 REST_USE_JWT = True
