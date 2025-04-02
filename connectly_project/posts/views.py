@@ -1,5 +1,4 @@
-import json
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.utils.decorators import method_decorator
@@ -7,22 +6,51 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.pagination import PageNumberPagination
-from django.db import models
+from django.db import models, transaction
 from rest_framework.exceptions import PermissionDenied, NotFound
 from rest_framework.decorators import api_view
 from rest_framework.reverse import reverse
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+from collections import OrderedDict
+from django.core.cache import cache, caches
+from django.conf import settings
+from django_redis import get_redis_connection
+import time
+from urllib.parse import urlsplit, urlunsplit, parse_qs, urlencode
 from .models import Post, Comment, Like, Follow
 from users.models import CustomUser
 from .serializers import UserSerializer, PostSerializer, CommentSerializer, LikeSerializer, FollowSerializer
 from .permissions import IsOwnerOrReadOnly, IsPostOwnerOrPublic, IsAdminUser
+from .utils import is_debug_mode, CacheHelper, get_user_feed_posts, get_user_newsfeed_posts
+
+def replace_query_param(url, key, val):
+    """
+    Given a URL and a key/val pair, set or replace an item in the query parameters.
+    """
+    (scheme, netloc, path, query, fragment) = urlsplit(url)
+    query_dict = parse_qs(query, keep_blank_values=True)
+    query_dict[key] = [val]
+    query = urlencode(query_dict, doseq=True)
+    return urlunsplit((scheme, netloc, path, query, fragment))
 
 class StandardResultsPagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'page_size'
     max_page_size = 100
+    
+    def get_paginated_response(self, data):
+        return Response(OrderedDict([
+            ('count', self.page.paginator.count),
+            ('next', self.get_next_link()),
+            ('previous', self.get_previous_link()),
+            ('current_page', self.page.number),
+            ('total_pages', self.page.paginator.num_pages),
+            ('results', data)
+        ]))
 
 class UserListCreate(APIView):
     """
@@ -33,6 +61,21 @@ class UserListCreate(APIView):
         serializer = UserSerializer(users, many=True)
         return Response(serializer.data)
     
+    @swagger_auto_schema(
+        request_body=UserSerializer,
+        operation_description="Create a new user account",
+        request_body_example={
+            "username": "newuser123",
+            "email": "newuser@example.com",
+            "password": "SecurePass123!",
+            "first_name": "New",
+            "last_name": "User"
+        },
+        responses={
+            201: UserSerializer,
+            400: "Bad Request - Invalid data"
+        }
+    )
     def post(self, request, format=None):
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
@@ -47,19 +90,41 @@ class PostListCreate(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsPagination
     
-    def get(self, request, format=None):
-        posts = Post.objects.all().order_by('-created_at')
+    def get(self, request):
+        posts = Post.objects.all()
         
         paginator = self.pagination_class()
         paginated_posts = paginator.paginate_queryset(posts, request)
         
         serializer = PostSerializer(paginated_posts, many=True)
         return paginator.get_paginated_response(serializer.data)
-    
-    def post(self, request, format=None):
-        serializer = PostSerializer(data=request.data, context={'request': request})
+
+    @swagger_auto_schema(
+        request_body=PostSerializer,
+        operation_description="Create a new post",
+        request_body_example={
+            "content": "This is a sample post content",
+            "privacy": "public"
+        }
+    )
+    def post(self, request):
+        serializer = PostSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save(author=request.user)
+            post = serializer.save(author=request.user)
+            
+            # With django-redis, we can now use wildcards for deletion
+            cache_client = caches['default']
+            
+            # Clear the user's own feed and newsfeed caches using patterns
+            cache_client.delete_pattern(CacheHelper.get_key_pattern('feed', request.user.id))
+            cache_client.delete_pattern(CacheHelper.get_key_pattern('newsfeed', request.user.id))
+            
+            # Clear newsfeed caches for all followers
+            followers = Follow.objects.filter(followed=request.user).values_list('follower_id', flat=True)
+            for follower_id in followers:
+                cache_client.delete_pattern(CacheHelper.get_key_pattern('feed', follower_id))
+                cache_client.delete_pattern(CacheHelper.get_key_pattern('newsfeed', follower_id))
+            
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -89,7 +154,11 @@ class PostCommentList(APIView):
     
     def get(self, request, post_id, format=None):
         post = get_object_or_404(Post, id=post_id)
-        comments = Comment.objects.filter(post=post).order_by('-created_at')
+        
+        # Use select_related to prefetch author data
+        comments = Comment.objects.select_related('author', 'post').filter(
+            post=post
+        ).order_by('-created_at')
         
         paginator = self.pagination_class()
         paginated_comments = paginator.paginate_queryset(comments, request)
@@ -103,6 +172,33 @@ class PostCommentCreate(APIView):
     """
     permission_classes = [IsAuthenticated]
     
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['content'],
+            properties={
+                'content': openapi.Schema(
+                    type=openapi.TYPE_STRING, 
+                    description='Content of the comment'
+                ),
+            }
+        ),
+        operation_description="Create a new comment on a specific post",
+        manual_parameters=[
+            openapi.Parameter(
+                'post_id',
+                openapi.IN_PATH,
+                description="ID of the post to comment on",
+                type=openapi.TYPE_INTEGER,
+                required=True
+            ),
+        ],
+        responses={
+            201: CommentSerializer,
+            400: "Bad Request - Invalid data",
+            404: "Not Found - Post doesn't exist"
+        }
+    )
     def post(self, request, post_id, format=None):
         post = get_object_or_404(Post, id=post_id)
         serializer = CommentSerializer(data=request.data)
@@ -133,6 +229,209 @@ class PostLikeCreate(APIView):
             like = Like.objects.create(user=request.user, post=post)
             serializer = LikeSerializer(like)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+@method_decorator(csrf_protect, name='dispatch')
+class BulkLikeView(APIView):
+    """Process multiple post likes in a single operation"""
+    permission_classes = [IsAuthenticated]
+    
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['post_ids'],
+            properties={
+                'post_ids': openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Schema(type=openapi.TYPE_INTEGER),
+                    description='List of post IDs to like'
+                ),
+                'action': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='Action to perform: "like" or "unlike"',
+                    enum=['like', 'unlike'],
+                    default='like'
+                ),
+            }
+        ),
+        operation_description="Process likes/unlikes for multiple posts in a single operation",
+        responses={
+            200: openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'processed': openapi.Schema(type=openapi.TYPE_INTEGER),
+                    'action': openapi.Schema(type=openapi.TYPE_STRING),
+                }
+            )
+        }
+    )
+    @transaction.atomic
+    def post(self, request):
+        # Get parameters
+        post_ids = request.data.get('post_ids', [])
+        action = request.data.get('action', 'like')
+        
+        if not post_ids:
+            return Response(
+                {"error": "No post_ids provided"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # Limit batch size for security/performance
+        if len(post_ids) > 100:
+            return Response(
+                {"error": "Maximum 100 posts can be processed in one request"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # For like action
+        if action == 'like':
+            # Get existing likes to avoid duplicates
+            existing_likes = Like.objects.filter(
+                user=request.user, 
+                post_id__in=post_ids
+            ).values_list('post_id', flat=True)
+            
+            # Create likes for posts that don't have them yet
+            new_likes = []
+            for post_id in post_ids:
+                if post_id not in existing_likes:
+                    new_likes.append(Like(user=request.user, post_id=post_id))
+            
+            # Bulk create the new likes
+            if new_likes:
+                Like.objects.bulk_create(new_likes, ignore_conflicts=True)
+            
+            processed = len(new_likes)
+            
+        # For unlike action
+        elif action == 'unlike':
+            # Bulk delete the likes
+            result = Like.objects.filter(
+                user=request.user, 
+                post_id__in=post_ids
+            ).delete()
+            
+            processed = result[0]  # Number of deleted objects
+            
+        else:
+            return Response(
+                {"error": "Invalid action. Use 'like' or 'unlike'."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Clear caches that might be affected
+        cache_client = caches['default']
+        cache_client.delete_pattern(CacheHelper.get_key_pattern('feed', request.user.id))
+        
+        return Response({
+            "processed": processed,
+            "action": action
+        })
+
+@method_decorator(csrf_protect, name='dispatch')
+class BulkFollowView(APIView):
+    """Process multiple user follows in a single operation"""
+    permission_classes = [IsAuthenticated]
+    
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['user_ids'],
+            properties={
+                'user_ids': openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Schema(type=openapi.TYPE_INTEGER),
+                    description='List of user IDs to follow/unfollow'
+                ),
+                'action': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='Action to perform: "follow" or "unfollow"',
+                    enum=['follow', 'unfollow'],
+                    default='follow'
+                ),
+            }
+        ),
+        operation_description="Process follows/unfollows for multiple users in a single operation",
+        responses={
+            200: openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'processed': openapi.Schema(type=openapi.TYPE_INTEGER),
+                    'action': openapi.Schema(type=openapi.TYPE_STRING),
+                }
+            )
+        }
+    )
+    @transaction.atomic
+    def post(self, request):
+        # Get parameters
+        user_ids = request.data.get('user_ids', [])
+        action = request.data.get('action', 'follow')
+        
+        if not user_ids:
+            return Response(
+                {"error": "No user_ids provided"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # Limit batch size for security/performance
+        if len(user_ids) > 100:
+            return Response(
+                {"error": "Maximum 100 users can be processed in one request"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Make sure user doesn't try to follow themselves
+        if request.user.id in user_ids:
+            return Response(
+                {"error": "You cannot follow yourself"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # For follow action
+        if action == 'follow':
+            # Get existing follows to avoid duplicates
+            existing_follows = Follow.objects.filter(
+                follower=request.user, 
+                followed_id__in=user_ids
+            ).values_list('followed_id', flat=True)
+            
+            # Create follows for users that don't have them yet
+            new_follows = []
+            for user_id in user_ids:
+                if user_id not in existing_follows:
+                    new_follows.append(Follow(follower=request.user, followed_id=user_id))
+            
+            # Bulk create the new follows
+            if new_follows:
+                Follow.objects.bulk_create(new_follows, ignore_conflicts=True)
+            
+            processed = len(new_follows)
+            
+        # For unfollow action
+        elif action == 'unfollow':
+            # Bulk delete the follows
+            result = Follow.objects.filter(
+                follower=request.user, 
+                followed_id__in=user_ids
+            ).delete()
+            
+            processed = result[0]  # Number of deleted objects
+            
+        else:
+            return Response(
+                {"error": "Invalid action. Use 'follow' or 'unfollow'."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Clear caches that might be affected
+        cache_client = caches['default']
+        cache_client.delete_pattern(CacheHelper.get_key_pattern('newsfeed', request.user.id))
+        
+        return Response({
+            "processed": processed,
+            "action": action
+        })
 
 class FollowUserView(APIView):
     """
@@ -168,21 +467,52 @@ class NewsFeedView(APIView):
     pagination_class = StandardResultsPagination
     
     def get(self, request, format=None):
+        # Create a user-specific cache key
+        page = request.query_params.get('page', 1)
+        page_size = request.query_params.get('page_size', 10)
+        cache_key = CacheHelper.get_newsfeed_key(request.user.id, page, page_size)
+        
+        # Try to get from cache first
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return Response(cached_data)
+            
         user = request.user
         
         # Get users that the current user follows
         followed_users = Follow.objects.filter(follower=user).values_list('followed', flat=True)
         
-        # Get posts from followed users and user's own posts
-        feed_posts = Post.objects.filter(
+        # Get posts with optimized queries
+        feed_posts = Post.objects.select_related('author').filter(
             models.Q(author__in=followed_users) | models.Q(author=user)
         ).order_by('-created_at')
+        
+        # Add annotated fields for performance - CORRECTED FIELD NAMES
+        feed_posts = feed_posts.annotate(
+            like_count=models.Count('likes', distinct=True),
+            comment_count=models.Count('comments', distinct=True)
+        )
         
         paginator = self.pagination_class()
         paginated_posts = paginator.paginate_queryset(feed_posts, request)
         
         serializer = PostSerializer(paginated_posts, many=True, context={'request': request})
-        return paginator.get_paginated_response(serializer.data)
+        
+        # Get paginated response
+        response_data = OrderedDict([
+            ('count', paginator.page.paginator.count),
+            ('next', paginator.get_next_link()),
+            ('previous', paginator.get_previous_link()),
+            ('current_page', paginator.page.number),
+            ('total_pages', paginator.page.paginator.num_pages),
+            ('results', serializer.data)
+        ])
+        
+        # Cache the result
+        cache_ttl = getattr(settings, 'CACHE_TTL', 60)
+        cache.set(cache_key, response_data, timeout=cache_ttl)
+        
+        return Response(response_data)
 
 @method_decorator(csrf_protect, name='dispatch')
 class PostDetailView(APIView):
@@ -206,19 +536,45 @@ class PostDeleteView(APIView):
 
 class FeedView(APIView):
     permission_classes = [IsAuthenticated]
-    pagination_class = StandardResultsPagination
-
+    
     def get(self, request):
-        # Get posts based on privacy settings
-        posts = Post.objects.filter(
-            models.Q(privacy='public') |
-            models.Q(privacy='private', author=request.user)
-        ).order_by('-created_at')
+        # Get parameters
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
         
-        paginator = self.pagination_class()
-        paginated_posts = paginator.paginate_queryset(posts, request)
-        serializer = PostSerializer(paginated_posts, many=True)
-        return paginator.get_paginated_response(serializer.data)
+        # Use cached query function
+        feed_data = get_user_feed_posts(request.user, page=page, page_size=page_size)
+        
+        # Serialize the results
+        serializer = PostSerializer(feed_data['results'], many=True, context={'request': request})
+        
+        # Build response with pagination info
+        response_data = OrderedDict([
+            ('count', feed_data['count']),
+            ('next', self.get_next_link(feed_data, request)),
+            ('previous', self.get_previous_link(feed_data, request)),
+            ('current_page', feed_data['current_page']),
+            ('total_pages', feed_data['num_pages']),
+            ('results', serializer.data)
+        ])
+        
+        return Response(response_data)
+    
+    def get_next_link(self, feed_data, request):
+        if not feed_data['has_next']:
+            return None
+            
+        url = request.build_absolute_uri()
+        page = feed_data['current_page'] + 1
+        return replace_query_param(url, 'page', page)
+        
+    def get_previous_link(self, feed_data, request):
+        if not feed_data['has_previous']:
+            return None
+            
+        url = request.build_absolute_uri()
+        page = feed_data['current_page'] - 1
+        return replace_query_param(url, 'page', page)
 
 @api_view(['GET'])
 def api_root(request, format=None):

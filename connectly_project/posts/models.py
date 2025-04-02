@@ -9,7 +9,7 @@ class Post(models.Model):
         ('private', 'Private'),
     ]
 
-    author = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     content = models.TextField()
     privacy = models.CharField(max_length=10, choices=PRIVACY_CHOICES, default='public')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -19,6 +19,11 @@ class Post(models.Model):
     
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['author']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['privacy']),
+        ]
 
 class Comment(models.Model):
     content = models.TextField()
@@ -32,6 +37,11 @@ class Comment(models.Model):
     
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['post']),
+            models.Index(fields=['author']),
+            models.Index(fields=['created_at']),
+        ]
 
 class Like(models.Model):
     user = models.ForeignKey(CustomUser, related_name='likes', on_delete=models.CASCADE)
@@ -40,7 +50,10 @@ class Like(models.Model):
     
     class Meta:
         unique_together = ('user', 'post')
-        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['post']),
+            models.Index(fields=['user']),
+        ]
     
     def __str__(self):
         return f"{self.user.username} likes {self.post}"
@@ -52,6 +65,10 @@ class Follow(models.Model):
     
     class Meta:
         unique_together = ('follower', 'followed')
+        indexes = [
+            models.Index(fields=['follower']),
+            models.Index(fields=['followed']),
+        ]
     
     def __str__(self):
         return f"{self.follower.username} follows {self.followed.username}"

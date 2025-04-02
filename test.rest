@@ -1,0 +1,27 @@
+### Test Redis caching with versioned keys
+GET http://127.0.0.1:8000/api/posts/feed/
+Authorization: Bearer c3978efc738532348f1bc18fa4a91062168b0fbe
+
+### Test batch like operation
+POST http://127.0.0.1:8000/api/posts/bulk/likes/
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+    "post_ids": [1, 2, 3, 4, 5],
+    "action": "like"
+}
+
+### Test batch follow operation
+POST http://127.0.0.1:8000/api/posts/bulk/follows/
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+    "user_ids": [2, 3, 4],
+    "action": "follow"
+}
+
+### Test query cache function
+GET http://127.0.0.1:8000/api/posts/feed/?page=1&page_size=10
+Authorization: Bearer YOUR_TOKEN_HERE

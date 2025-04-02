@@ -3,6 +3,7 @@ URL configuration for connectly_project project.
 """
 from django.contrib import admin
 from django.urls import path, include, re_path
+from django.shortcuts import redirect
 from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from drf_yasg.views import get_schema_view
@@ -25,6 +26,9 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
+    # Redirect root URL to /api/
+    path('', lambda request: redirect('/api/'), name='home'),
+    
     # Admin site
     path('admin/', admin.site.urls),
     

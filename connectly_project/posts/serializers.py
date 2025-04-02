@@ -3,10 +3,15 @@ from .models import Post, Comment, Like, Follow
 from users.models import CustomUser
 
 class UserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
+    
     class Meta:
         model = CustomUser
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role']
+        fields = ['id', 'username', 'email', 'password', 'first_name', 'last_name', 'role']
         read_only_fields = ['role']
+        extra_kwargs = {
+            'password': {'write_only': True}
+        }
         
     def validate_username(self, value):
         if len(value) < 3:
@@ -17,6 +22,20 @@ class UserSerializer(serializers.ModelSerializer):
         if not value.endswith(('.com', '.org', '.net', '.edu')):
             raise serializers.ValidationError("Email must end with a valid domain")
         return value
+    
+    def create(self, validated_data):
+        # Extract password from validated_data
+        password = validated_data.pop('password', None)
+        
+        # Create the user instance
+        user = CustomUser.objects.create(**validated_data)
+        
+        # Set the password if provided
+        if password:
+            user.set_password(password)
+            user.save()
+            
+        return user
 
 class LikeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -34,34 +53,20 @@ class LikeSerializer(serializers.ModelSerializer):
         return data
 
 class CommentSerializer(serializers.ModelSerializer):
-    replies = serializers.SerializerMethodField()
     author_username = serializers.ReadOnlyField(source='author.username')
-
+    
     class Meta:
         model = Comment
-        fields = ['id', 'content', 'post', 'author', 'author_username', 'parent', 'created_at', 'replies']
-        read_only_fields = ['author', 'created_at']
-
-    def get_replies(self, obj):
-        if obj.replies.exists():
-            return CommentSerializer(obj.replies.all(), many=True, context=self.context).data
-        return []
-
-    def validate_post(self, value):
-        if not Post.objects.filter(id=value.id).exists():
-            raise serializers.ValidationError("Post does not exist")
-        return value
-
-    def validate_author(self, value):
-        request = self.context.get('request')
-        if request and hasattr(request, 'user'):
-            return request.user
-        raise serializers.ValidationError("Author must be authenticated")
+        fields = ['id', 'content', 'author', 'author_username', 'post', 'created_at']
+        read_only_fields = ['author', 'author_username', 'post', 'created_at']
 
 class PostSerializer(serializers.ModelSerializer):
+    author_username = serializers.ReadOnlyField(source='author.username')
+    
     class Meta:
         model = Post
-        fields = ['id', 'author', 'content', 'privacy', 'created_at']
+        fields = ['id', 'content', 'created_at', 'author', 'author_username', 'privacy']
+        read_only_fields = ['author', 'author_username', 'created_at']
 
 class FollowSerializer(serializers.ModelSerializer):
     follower_username = serializers.ReadOnlyField(source='follower.username')

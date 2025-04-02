@@ -9,53 +9,36 @@ from rest_framework.permissions import AllowAny
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from dj_rest_auth.registration.views import SocialLoginView
+from django.conf import settings
+import os
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+from .serializers import RegisterSerializer
 
-class UserRegistrationView(APIView):
+class RegisterView(APIView):
     """
-    Register a new user
+    API endpoint for user registration
     """
-    permission_classes = [AllowAny]
     
-    def post(self, request, format=None):
-        data = request.data
-        username = data.get('username')
-        email = data.get('email')
-        password = data.get('password')
-        password2 = data.get('password2')
-        
-        if password != password2:
-            return Response({'error': 'Passwords do not match'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Check if user already exists
-        if CustomUser.objects.filter(username=username).exists():
-            return Response({'error': 'Username already exists'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        if CustomUser.objects.filter(email=email).exists():
-            return Response({'error': 'Email already exists'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Validate password
-        try:
-            validate_password(password)
-        except ValidationError as e:
-            return Response({'error': e}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Create new user
-        user = CustomUser.objects.create_user(
-            username=username,
-            email=email,
-            password=password
-        )
-        
-        return Response({
-            'id': user.id,
-            'username': user.username,
-            'email': user.email
-        }, status=status.HTTP_201_CREATED)
+    @swagger_auto_schema(
+        request_body=RegisterSerializer,
+        operation_description="Create a new user account",
+        responses={
+            201: "User created successfully",
+            400: "Bad request - invalid data"
+        }
+    )
+    def post(self, request):
+        serializer = RegisterSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class GoogleLoginView(SocialLoginView):
     """
     Google OAuth2 authentication API endpoint
     """
     adapter_class = GoogleOAuth2Adapter
-    callback_url = 'http://localhost:8000/api/auth/google/callback/'
+    callback_url = os.getenv('GOOGLE_OAUTH_REDIRECT_URI')
     client_class = OAuth2Client

@@ -78,8 +78,9 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'allauth.account.middleware.AccountMiddleware',  # Add this line
-    'posts.middleware.RoleMiddleware',  # If you have this custom middleware
+    'allauth.account.middleware.AccountMiddleware',
+    'posts.middleware.RoleMiddleware',
+    'posts.middleware.PerformanceMiddleware',
 ]
 
 # CSRF settings
@@ -170,29 +171,15 @@ CSRF_COOKIE_SECURE = False
 
 # Adjust REST_FRAMEWORK settings to allow browsing
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.BasicAuthentication',
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-        'rest_framework.authentication.TokenAuthentication',  # Add this
-    ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticatedOrReadOnly',  # Allow GET requests without authentication
-    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',  # Primary auth method
+        'rest_framework.authentication.SessionAuthentication',        # For browsable API
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-        'rest_framework.renderers.BrowsableAPIRenderer',  # Enables the browsable API
-    ],
-    'DEFAULT_THROTTLE_CLASSES': [
-        'rest_framework.throttling.AnonRateThrottle',
-        'rest_framework.throttling.UserRateThrottle',
-    ],
-    'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/day',
-        'user': '1000/day',
-    },
 }
 
 # Authentication Backends
@@ -205,12 +192,12 @@ AUTH_USER_MODEL = 'users.CustomUser'
 
 SITE_ID = 1
 
-# Provider specific settings
+# Google OAuth2 settings
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'APP': {
-            'client_id': os.environ.get('GOOGLE_CLIENT_ID', ''),
-            'secret': os.environ.get('GOOGLE_CLIENT_SECRET', ''),
+            'client_id': os.getenv('GOOGLE_OAUTH_CLIENT_ID'),
+            'secret': os.getenv('GOOGLE_OAUTH_CLIENT_SECRET'),
             'key': ''
         },
         'SCOPE': [
@@ -219,44 +206,77 @@ SOCIALACCOUNT_PROVIDERS = {
         ],
         'AUTH_PARAMS': {
             'access_type': 'online',
-        },
-        # Redirect to frontend after authentication
-        'CALLBACK_URL': 'http://localhost:8000/api/auth/google/callback/',
+        }
     }
 }
 
 # Allauth settings
 ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_UNIQUE_EMAIL = True
-ACCOUNT_USERNAME_REQUIRED = True
-ACCOUNT_LOGIN_METHODS = {'email', 'username'}
-ACCOUNT_EMAIL_VERIFICATION = 'optional'
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
 
-# URLs
-LOGIN_REDIRECT_URL = '/api/posts/feed/'
+# URLs and Redirects
+LOGIN_URL = '/accounts/login/'
+LOGIN_REDIRECT_URL = '/api/'  # Redirect here after successful login
+LOGOUT_REDIRECT_URL = '/api/'  # Redirect here after logout
+HOME_URL = '/api/'  # Define home URL
+
+# Update AllAuth Settings
+ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = True
+ACCOUNT_LOGIN_ON_GET = True
+ACCOUNT_LOGOUT_ON_GET = True
+ACCOUNT_LOGIN_REDIRECT_URL = '/api/'
 ACCOUNT_LOGOUT_REDIRECT_URL = '/accounts/login/'
+
+# Social Account Settings
+SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_LOGIN_REDIRECT_URL = '/api/'
 
 # Email settings for development
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 
-# Redis cache configuration
+# Redis cache configuration replaced with database sessions
 CACHES = {
     "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/1",  # Use redis://redis:6379/1 for Docker
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "IGNORE_EXCEPTIONS": True,  # Redis is not mandatory for the app to work
-        }
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "django_cache",
     }
 }
 
-# Cache timeout in seconds (15 minutes)
-CACHE_TTL = 60 * 15
-
-
+# Change the session engine to use the database instead of cache
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
 # Configure API-based authentication flow
 REST_USE_JWT = True
+
+# Logging configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': 'api_performance.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'api.performance': {
+            'handlers': ['console', 'file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
+}
