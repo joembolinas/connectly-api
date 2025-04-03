@@ -6,12 +6,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.pagination import PageNumberPagination
 from django.db import models, transaction
 from rest_framework.exceptions import PermissionDenied, NotFound
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.reverse import reverse
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
@@ -21,6 +21,7 @@ from django.conf import settings
 from django_redis import get_redis_connection
 import time
 from urllib.parse import urlsplit, urlunsplit, parse_qs, urlencode
+from django.db.models import Q
 from .models import Post, Comment, Like, Follow
 from users.models import CustomUser
 from .serializers import UserSerializer, PostSerializer, CommentSerializer, LikeSerializer, FollowSerializer
@@ -577,6 +578,7 @@ class FeedView(APIView):
         return replace_query_param(url, 'page', page)
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def api_root(request, format=None):
     """
     API Root showing all available endpoints
@@ -584,18 +586,47 @@ def api_root(request, format=None):
     return Response({
         'auth': {
             'register': reverse('user-registration', request=request, format=format),
-            'google-login': reverse('google-login', request=request, format=format),
+            'login_jwt': reverse('token_obtain_pair', request=request, format=format),
+            'login_session': reverse('session-login', request=request, format=format),
+            'logout': reverse('user-logout', request=request, format=format),
+            'me': reverse('current-user', request=request, format=format),
+            'google_login': reverse('google-login', request=request, format=format),
             'token': reverse('api_token_auth', request=request, format=format),
-            'jwt': reverse('token_obtain_pair', request=request, format=format),
-            'jwt-refresh': reverse('token_refresh', request=request, format=format),
-        },
-        'posts': {
-            'list': reverse('post-list-create', request=request, format=format),
-            'feed': reverse('feed', request=request, format=format),
-            'newsfeed': reverse('newsfeed', request=request, format=format),
+            'jwt_refresh': reverse('token_refresh', request=request, format=format),
         },
         'users': {
-            'list': reverse('user-list-create', request=request, format=format),
+            'list': reverse('user-list', request=request, format=format),
+            'profile': '/api/auth/{user_id}/',
+            'delete': '/api/auth/{user_id}/delete/',
+            'followers': '/api/posts/users/{user_id}/followers/',
+            'following': '/api/posts/users/{user_id}/following/',
+            'follow': '/api/posts/follow/{user_id}/',
+        },
+        'posts': {
+            'list_create': reverse('post-list-create', request=request, format=format),
+            'detail': '/api/posts/posts/{post_id}/',
+            'update': '/api/posts/posts/{post_id}/update/',
+            'delete': '/api/posts/posts/{post_id}/delete/',
+            'comments': '/api/posts/posts/{post_id}/comments/',
+            'create_comment': '/api/posts/posts/{post_id}/comment/',
+            'like': '/api/posts/posts/{post_id}/like/',
+            'likes_list': '/api/posts/posts/{post_id}/likes/',
+        },
+        'comments': {
+            'update': '/api/posts/comments/{comment_id}/update/',
+            'delete': '/api/posts/comments/{comment_id}/delete/',
+        },
+        'feeds': {
+            'general': reverse('feed', request=request, format=format),
+            'personalized': reverse('newsfeed', request=request, format=format),
+        },
+        'admin': {
+            'dashboard': reverse('admin-dashboard', request=request, format=format),
+        },
+        'protected': reverse('protected-view', request=request, format=format),
+        'bulk_operations': {
+            'likes': reverse('bulk-likes', request=request, format=format),
+            'follows': reverse('bulk-follows', request=request, format=format),
         },
         'docs': {
             'swagger': reverse('schema-swagger-ui', request=request, format=format),
@@ -703,4 +734,107 @@ class PostLikesListView(APIView):
         
         serializer = LikeSerializer(paginated_likes, many=True)
         return paginator.get_paginated_response(serializer.data)
+
+class UserFollowersView(APIView):
+    """
+    API endpoint for listing a user's followers
+    """
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsPagination
+    
+    @swagger_auto_schema(
+        operation_description="Get all followers of a user",
+        responses={
+            200: "List of followers",
+            404: "User not found"
+        },
+        manual_parameters=[
+            openapi.Parameter('page', openapi.IN_QUERY, description="Page number", type=openapi.TYPE_INTEGER),
+            openapi.Parameter('page_size', openapi.IN_QUERY, description="Number of results per page", type=openapi.TYPE_INTEGER),
+        ]
+    )
+    def get(self, request, user_id):
+        user = get_object_or_404(CustomUser, id=user_id)
+        followers = Follow.objects.filter(followed=user).select_related('follower')
+        
+        paginator = self.pagination_class()
+        paginated_followers = paginator.paginate_queryset(followers, request)
+        
+        serializer = FollowSerializer(paginated_followers, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+class UserFollowingView(APIView):
+    """
+    API endpoint for listing users that a user is following
+    """
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsPagination
+    
+    @swagger_auto_schema(
+        operation_description="Get all users that a user is following",
+        responses={
+            200: "List of followed users",
+            404: "User not found"
+        },
+        manual_parameters=[
+            openapi.Parameter('page', openapi.IN_QUERY, description="Page number", type=openapi.TYPE_INTEGER),
+            openapi.Parameter('page_size', openapi.IN_QUERY, description="Number of results per page", type=openapi.TYPE_INTEGER),
+        ]
+    )
+    def get(self, request, user_id):
+        user = get_object_or_404(CustomUser, id=user_id)
+        following = Follow.objects.filter(follower=user).select_related('followed')
+        
+        paginator = self.pagination_class()
+        paginated_following = paginator.paginate_queryset(following, request)
+        
+        serializer = FollowSerializer(paginated_following, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+class AdminDashboardView(APIView):
+    """
+    Admin-only dashboard
+    """
+    permission_classes = [IsAdminUser]
+    
+    @swagger_auto_schema(
+        operation_description="Admin dashboard with system statistics (admin only)",
+        responses={
+            200: "Dashboard data",
+            403: "Permission denied - not an admin"
+        }
+    )
+    def get(self, request):
+        # Get system stats
+        user_count = CustomUser.objects.count()
+        post_count = Post.objects.count()
+        comment_count = Comment.objects.count()
+        like_count = Like.objects.count()
+        
+        return Response({
+            'user_count': user_count,
+            'post_count': post_count,
+            'comment_count': comment_count,
+            'like_count': like_count,
+            'admin_name': request.user.username
+        })
+
+class ProtectedView(APIView):
+    """
+    Example of a protected endpoint
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @swagger_auto_schema(
+        operation_description="Protected endpoint requiring authentication",
+        responses={
+            200: "Access granted",
+            401: "Authentication credentials not provided"
+        }
+    )
+    def get(self, request):
+        return Response({
+            'message': 'This is a protected endpoint',
+            'user': request.user.username
+        })
 

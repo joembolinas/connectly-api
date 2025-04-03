@@ -5,10 +5,14 @@ from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from django.contrib.auth import authenticate, login, logout
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from collections import OrderedDict
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import never_cache
+from django.views.decorators.csrf import csrf_protect
 from .models import CustomUser
 from .serializers import (
     RegisterSerializer, 
@@ -16,6 +20,10 @@ from .serializers import (
     UserUpdateSerializer,
     UserListSerializer
 )
+
+class AuthRateThrottle(AnonRateThrottle):
+    scope = 'auth'
+    rate = '5/minute'
 
 class StandardResultsPagination(PageNumberPagination):
     page_size = 10
@@ -37,7 +45,10 @@ class RegisterView(APIView):
     API endpoint for user registration
     """
     permission_classes = [AllowAny]
+    throttle_classes = [AuthRateThrottle]
     
+    @method_decorator(csrf_protect, name='post')
+    @method_decorator(never_cache, name='post')
     @swagger_auto_schema(
         request_body=RegisterSerializer,
         operation_description="Create a new user account",
@@ -58,6 +69,7 @@ class SessionLoginView(APIView):
     API endpoint for session-based login
     """
     permission_classes = [AllowAny]
+    throttle_classes = [AuthRateThrottle]
     
     @swagger_auto_schema(
         request_body=openapi.Schema(
