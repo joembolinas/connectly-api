@@ -603,3 +603,104 @@ def api_root(request, format=None):
         }
     })
 
+class PostUpdateView(APIView):
+    """
+    API endpoint for updating posts
+    """
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+    
+    @swagger_auto_schema(
+        request_body=PostSerializer,
+        operation_description="Update a post",
+        responses={
+            200: PostSerializer,
+            400: "Bad request - invalid data",
+            403: "Permission denied - not your post",
+            404: "Post not found"
+        }
+    )
+    def patch(self, request, post_id):
+        post = get_object_or_404(Post, id=post_id)
+        self.check_object_permissions(request, post)
+        
+        serializer = PostSerializer(post, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class CommentUpdateView(APIView):
+    """
+    API endpoint for updating comments
+    """
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+    
+    @swagger_auto_schema(
+        request_body=CommentSerializer,
+        operation_description="Update a comment",
+        responses={
+            200: CommentSerializer,
+            400: "Bad request - invalid data",
+            403: "Permission denied - not your comment",
+            404: "Comment not found"
+        }
+    )
+    def patch(self, request, comment_id):
+        comment = get_object_or_404(Comment, id=comment_id)
+        self.check_object_permissions(request, comment)
+        
+        serializer = CommentSerializer(comment, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class CommentDeleteView(APIView):
+    """
+    API endpoint for deleting comments
+    """
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+    
+    @swagger_auto_schema(
+        operation_description="Delete a comment",
+        responses={
+            204: "Comment deleted successfully",
+            403: "Permission denied - not your comment",
+            404: "Comment not found"
+        }
+    )
+    def delete(self, request, comment_id):
+        comment = get_object_or_404(Comment, id=comment_id)
+        self.check_object_permissions(request, comment)
+        
+        comment.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+class PostLikesListView(APIView):
+    """
+    API endpoint for listing likes on a post
+    """
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsPagination
+    
+    @swagger_auto_schema(
+        operation_description="Get all likes for a post",
+        responses={
+            200: "List of likes",
+            404: "Post not found"
+        },
+        manual_parameters=[
+            openapi.Parameter('page', openapi.IN_QUERY, description="Page number", type=openapi.TYPE_INTEGER),
+            openapi.Parameter('page_size', openapi.IN_QUERY, description="Number of results per page", type=openapi.TYPE_INTEGER),
+        ]
+    )
+    def get(self, request, post_id):
+        post = get_object_or_404(Post, id=post_id)
+        likes = Like.objects.filter(post=post).select_related('user')
+        
+        paginator = self.pagination_class()
+        paginated_likes = paginator.paginate_queryset(likes, request)
+        
+        serializer = LikeSerializer(paginated_likes, many=True)
+        return paginator.get_paginated_response(serializer.data)
+

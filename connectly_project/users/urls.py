@@ -1,5 +1,13 @@
 from django.urls import path
-from .views import RegisterView  # Changed from UserRegistrationView
+from .views import (
+    RegisterView, 
+    SessionLoginView, 
+    LogoutView, 
+    UserProfileView, 
+    UserDeleteView, 
+    CurrentUserView,
+    UserListView
+)
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from dj_rest_auth.registration.views import SocialLoginView
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
@@ -12,6 +20,11 @@ class GoogleLoginView(SocialLoginView):
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='user-registration'),
+    path('login/', SessionLoginView.as_view(), name='session-login'),
+    path('logout/', LogoutView.as_view(), name='user-logout'),
+    path('me/', CurrentUserView.as_view(), name='current-user'),
     path('google/login/', GoogleLoginView.as_view(), name='google-login'),
-    # Your other auth-related URLs
+    path('list/', UserListView.as_view(), name='user-list'),
+    path('<int:user_id>/', UserProfileView.as_view(), name='user-profile'),
+    path('<int:user_id>/delete/', UserDeleteView.as_view(), name='user-delete'),
 ]
