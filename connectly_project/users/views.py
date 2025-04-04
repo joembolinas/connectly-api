@@ -12,7 +12,7 @@ from drf_yasg import openapi
 from collections import OrderedDict
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
-from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.csrf import csrf_protect, csrf_exempt
 from .models import CustomUser
 from .serializers import (
     RegisterSerializer, 
@@ -40,6 +40,7 @@ class StandardResultsPagination(PageNumberPagination):
             ('results', data)
         ]))
 
+@method_decorator(csrf_exempt, name='dispatch')
 class RegisterView(APIView):
     """
     API endpoint for user registration
@@ -64,6 +65,7 @@ class RegisterView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class SessionLoginView(APIView):
     """
     API endpoint for session-based login
@@ -97,6 +99,7 @@ class SessionLoginView(APIView):
             return Response(serializer.data)
         return Response({"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class LogoutView(APIView):
     """
     API endpoint for logging out
@@ -113,6 +116,7 @@ class LogoutView(APIView):
         logout(request)
         return Response({"detail": "Successfully logged out."})
 
+@method_decorator(csrf_exempt, name='dispatch')
 class UserProfileView(APIView):
     """
     API endpoint for retrieving and updating user profiles
@@ -156,6 +160,7 @@ class UserProfileView(APIView):
             return Response(UserDetailSerializer(user).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class UserDeleteView(APIView):
     """
     API endpoint for deleting users (admin only)
@@ -174,6 +179,7 @@ class UserDeleteView(APIView):
         user.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class CurrentUserView(APIView):
     """
     API endpoint for retrieving current user's information
@@ -190,6 +196,7 @@ class CurrentUserView(APIView):
         serializer = UserDetailSerializer(request.user)
         return Response(serializer.data)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class UserListView(APIView):
     """
     API endpoint for listing all users
@@ -215,3 +222,21 @@ class UserListView(APIView):
         
         serializer = UserListSerializer(paginated_users, many=True)
         return paginator.get_paginated_response(serializer.data)
+
+@api_view(['POST'])
+@csrf_exempt
+@permission_classes([AllowAny])
+def login_view_test(request):
+    """
+    API endpoint for session-based login (CSRF exempt)
+    """
+    username = request.data.get('username')
+    password = request.data.get('password')
+    
+    user = authenticate(username=username, password=password)
+    if user:
+        login(request, user)
+        serializer = UserDetailSerializer(user)
+        return Response(serializer.data)
+    return Response({"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
+

@@ -6,7 +6,8 @@ from .views import (
     UserProfileView, 
     UserDeleteView, 
     CurrentUserView,
-    UserListView
+    UserListView,
+    login_view_test  # Add this import
 )
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from dj_rest_auth.registration.views import SocialLoginView
@@ -56,6 +57,7 @@ class GoogleLoginView(SocialLoginView):
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='user-registration'),
     path('login/', SessionLoginView.as_view(), name='session-login'),
+    path('login-test/', login_view_test, name='session-login-test'),  # Add this line
     path('logout/', LogoutView.as_view(), name='user-logout'),
     path('me/', CurrentUserView.as_view(), name='current-user'),
     path('google/login/', GoogleLoginView.as_view(), name='google-login'),
