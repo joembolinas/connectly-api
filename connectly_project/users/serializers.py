@@ -30,6 +30,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        validated_data.pop('password2')
         user = CustomUser.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
@@ -37,3 +38,32 @@ class RegisterSerializer(serializers.ModelSerializer):
         )
         user.save()
         return user
+
+class UserDetailSerializer(serializers.ModelSerializer):
+    """Serializer for user detail view"""
+    
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'date_joined']
+        read_only_fields = ['role', 'date_joined']
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating user profile"""
+    
+    class Meta:
+        model = CustomUser
+        fields = ['first_name', 'last_name', 'email']
+        
+    def validate_email(self, value):
+        user = self.context['request'].user
+        if CustomUser.objects.exclude(pk=user.pk).filter(email=value).exists():
+            raise serializers.ValidationError("This email is already in use.")
+        return value
+
+class UserListSerializer(serializers.ModelSerializer):
+    """Serializer for listing users"""
+    
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role']
+        read_only_fields = ['role']

@@ -41,3 +41,14 @@ class PerformanceMiddleware:
             response['X-Request-Duration'] = f"{duration:.2f}s"
         
         return response
+
+class DisableCSRFMiddleware:
+    """Completely disable CSRF for all requests - USE FOR TESTING ONLY"""
+    
+    def __init__(self, get_response):
+        self.get_response = get_response
+        
+    def __call__(self, request):
+        # Set attribute that exempts this request from CSRF verification
+        setattr(request, '_dont_enforce_csrf_checks', True)
+        return self.get_response(request)

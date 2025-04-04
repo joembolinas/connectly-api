@@ -14,7 +14,8 @@ from django.conf import settings
 import hashlib
 import json
 from functools import wraps
-from django.db import connection, transaction
+from django.db import connection, transaction, models
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 import time
 
 class CacheHelper:
@@ -60,6 +61,48 @@ class CacheHelper:
             value = function()
             cache.set(key, value, timeout=timeout)
         return value
+
+class SafeCacheHelper:
+    """A safer version of cache operations that won't crash if cache operations fail"""
+    
+    @staticmethod
+    def delete(key):
+        """Delete a cache key safely"""
+        try:
+            cache.delete(key)
+        except Exception as e:
+            # Log this but don't fail the request
+            print(f"Cache delete error: {str(e)}")
+    
+    @staticmethod
+    def delete_pattern(pattern):
+        """Try to delete pattern if Redis, otherwise do nothing"""
+        try:
+            cache_client = caches['default']
+            if hasattr(cache_client, 'delete_pattern'):
+                cache_client.delete_pattern(pattern)
+        except Exception as e:
+            # Log this but don't fail the request
+            print(f"Cache pattern delete error: {str(e)}")
+    
+    @staticmethod
+    def get(key, default=None):
+        """Get from cache safely"""
+        try:
+            return cache.get(key, default)
+        except Exception as e:
+            # Log but return default
+            print(f"Cache get error: {str(e)}")
+            return default
+    
+    @staticmethod
+    def set(key, value, timeout=None):
+        """Set cache safely"""
+        try:
+            cache.set(key, value, timeout=timeout)
+        except Exception as e:
+            # Log but don't fail
+            print(f"Cache set error: {str(e)}")
 
 def is_debug_mode():
     """
@@ -121,7 +164,6 @@ def query_cache(ttl=None, prefix="querydata"):
 def get_user_feed_posts(user, privacy_filter=None, page=1, page_size=10):
     """Get posts for user feed with caching"""
     if privacy_filter is None:
-        # Default privacy filter - public or user's private posts
         privacy_filter = models.Q(privacy='public') | models.Q(privacy='private', author=user)
     
     # Get posts based on privacy settings with select_related for author
