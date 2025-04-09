@@ -54,63 +54,7 @@ graph TD
 
 The system uses five primary entities with well-defined relationships:
 
-```mermaid
-erDiagram
-    CustomUser ||--o{ Post : "creates"
-    CustomUser ||--o{ Comment : "writes"
-    CustomUser ||--o{ Like : "performs"
-    CustomUser ||--o{ Follow : "initiates as follower"
-    CustomUser ||--o{ Follow : "receives as followed"
-    Post ||--o{ Comment : "contains"
-    Post ||--o{ Like : "receives"
-    Comment ||--o{ Comment : "parent of"
-
-    CustomUser {
-        int id PK
-        string username
-        string email
-        string password
-        string first_name
-        string last_name
-        string role
-        bool is_active
-        bool is_staff
-        bool is_superuser
-        datetime date_joined
-        datetime last_login
-    }
-
-    Post {
-        int id PK
-        int author_id FK
-        text content
-        string privacy
-        datetime created_at
-    }
-
-    Comment {
-        int id PK
-        int author_id FK
-        int post_id FK
-        int parent_id FK "nullable"
-        text content
-        datetime created_at
-    }
-
-    Like {
-        int id PK
-        int user_id FK
-        int post_id FK
-        datetime created_at
-    }
-
-    Follow {
-        int id PK
-        int follower_id FK
-        int followed_id FK
-        datetime created_at
-    }
-```
+[![img](https://mermaid.ink/img/pako:eNqdVMFu2zAM_RVB5zSwk9RufM3QyzagwLDLECBQLTpRa4sGJTfN0vz7JDlOu9lNuvokPz6Sj6SoPc9RAs840Bcl1iSqpWbuWzTGYvXTALGXl6sr3LM7NJZlbMlzAmHBLPl7zAVWFeiWvCV1lvtNPUIg1kAFUnWGeotlidtAVlpZ5UUwYVgRcKAPeRLkoJ7-cpSdY6hwoIYctRVKmyHeSX8X-KTiGGAgXi3IH7Hw3J7mfYv4TzmWkuzu6ytkLCm9Zo1jalFBzwCVUGUPrYUxWyTZMxSKjF0NRirFexbC8g14j1gyZVYit67-Pm6sKIoBuHET92W8mqSbqFUVhMPqAZUGOWANwkpcq2PvDl0Tw1zOt89DorEbpJWz3L6xWHi2zE_ajabfP1JPIt8NiGmXQa6E_UdMN_DP6vGW2hU0iIcL1FrcfdJNWYp7NxN-qZzLssN9vqzZD-6jii8nPe7n5bTdqg-l7rb5f9LzEa-A3MpI9wKG9EtuN-DuPPeLKgU9-qYeHM9NCX_sdM4zSw2MOGGz3vCsEKVxf03t0xxf0BNaC_0Lsepc1uTzHN1BS6AFNtryLI6mgcyzPX_m2WQWjWdRNInSm0maTNOb2YjvHHw9TpIkTafxfDKJ5854GPHfIX40ns8cMU6j6XWSxOmIg1QW6Xv7tocn_vAHQsfU7Q?type=png)](https://mermaid.live/edit#pako:eNqdVMFu2zAM_RVB5zSwk9RufM3QyzagwLDLECBQLTpRa4sGJTfN0vz7JDlOu9lNuvokPz6Sj6SoPc9RAs840Bcl1iSqpWbuWzTGYvXTALGXl6sr3LM7NJZlbMlzAmHBLPl7zAVWFeiWvCV1lvtNPUIg1kAFUnWGeotlidtAVlpZ5UUwYVgRcKAPeRLkoJ7-cpSdY6hwoIYctRVKmyHeSX8X-KTiGGAgXi3IH7Hw3J7mfYv4TzmWkuzu6ytkLCm9Zo1jalFBzwCVUGUPrYUxWyTZMxSKjF0NRirFexbC8g14j1gyZVYit67-Pm6sKIoBuHET92W8mqSbqFUVhMPqAZUGOWANwkpcq2PvDl0Tw1zOt89DorEbpJWz3L6xWHi2zE_ajabfP1JPIt8NiGmXQa6E_UdMN_DP6vGW2hU0iIcL1FrcfdJNWYp7NxN-qZzLssN9vqzZD-6jii8nPe7n5bTdqg-l7rb5f9LzEa-A3MpI9wKG9EtuN-DuPPeLKgU9-qYeHM9NCX_sdM4zSw2MOGGz3vCsEKVxf03t0xxf0BNaC_0Lsepc1uTzHN1BS6AFNtryLI6mgcyzPX_m2WQWjWdRNInSm0maTNOb2YjvHHw9TpIkTafxfDKJ5854GPHfIX40ns8cMU6j6XWSxOmIg1QW6Xv7tocn_vAHQsfU7Q)
 
 ### Database Schema Optimizations
 
@@ -126,82 +70,7 @@ The database schema includes several optimizations:
 
 The authentication and authorization system supports multiple methods and implements a robust role-based access control system:
 
-```mermaid
-flowchart TD
-    Client((Client))
-  
-    subgraph "Authentication Methods"
-        SessionAuth[Session Authentication]
-        JWTAuth[JWT Authentication]
-        GoogleAuth[Google OAuth]
-    end
-  
-    subgraph "Authentication Process"
-        Credentials{Validate Credentials}
-        SessionCreate[Create Session]
-        TokenCreate[Generate JWT Tokens]
-        GoogleValidate[Validate Google Token]
-        AuthSuccess[Authentication Success]
-        AuthFailure[Authentication Failed]
-    end
-  
-    subgraph "Authorization Process"
-        AuthCheck{Check Authentication}
-        RoleCheck{Check User Role}
-        OwnerCheck{Check Resource Ownership}
-        PrivacyCheck{Check Privacy Settings}
-        AccessGranted[Access Granted]
-        AccessDenied[Access Denied - 401/403]
-    end
-  
-    %% Authentication Flows
-    Client -->|Username/Password| SessionAuth
-    Client -->|Username/Password| JWTAuth
-    Client -->|Google Token| GoogleAuth
-  
-    SessionAuth --> Credentials
-    JWTAuth --> Credentials
-    GoogleAuth --> GoogleValidate
-  
-    GoogleValidate -->|Valid Token| AuthSuccess
-    GoogleValidate -->|Invalid Token| AuthFailure
-  
-    Credentials -->|Valid| SessionCreate
-    Credentials -->|Valid| TokenCreate
-    Credentials -->|Invalid| AuthFailure
-  
-    SessionCreate --> AuthSuccess
-    TokenCreate --> AuthSuccess
-  
-    AuthSuccess -->|Session Cookie| Client
-    AuthSuccess -->|JWT Tokens| Client
-    AuthFailure -->|Error Response| Client
-  
-    %% Authorization Flows
-    Client -->|API Request with Auth| AuthCheck
-  
-    AuthCheck -->|Authenticated| RoleCheck
-    AuthCheck -->|Unauthenticated| AccessDenied
-  
-    RoleCheck -->|Admin Required?| AdminCheck{Is Admin?}
-    RoleCheck -->|Moderator Required?| ModCheck{Is Moderator?}
-    RoleCheck -->|Regular User| OwnerCheck
-  
-    AdminCheck -->|Yes| AccessGranted
-    AdminCheck -->|No| AccessDenied
-  
-    ModCheck -->|Yes| AccessGranted
-    ModCheck -->|No| AccessDenied
-  
-    OwnerCheck -->|Is Owner| AccessGranted
-    OwnerCheck -->|Not Owner| PrivacyCheck
-  
-    PrivacyCheck -->|Public Resource| AccessGranted
-    PrivacyCheck -->|Private Resource| AccessDenied
-  
-    AccessGranted -->|Process Request| Client
-    AccessDenied -->|401/403 Response| Client
-```
+[![](https://mermaid.ink/img/pako:eNqNlltP2zAUgP9KZGkSSAXSG708DKGyISYBFZdNW8uDSUxrNbU7O6GDpv99x5ckTpoi-tDEx9-5OeecZIMCHhI0RC8RXwdzLGLv4WLKPPiNIkpYfHBgroeHSmp2ZPI8E3g196boPInnsEsDHFPOvGsSz3kop8iA6ndPpIQtBU7svVfWeirgH78eNAjX_dAl57OIaM7cerdqYQnCws9EOhY8gGjcSEeChIrAkdz8xBENcUxc4XYnKdgEZmIumdCJ9IEvSAZdEkaEwlRuekPu5JR5neTubYKad3CVzH0SqAwmlcSsuAJ_xzRKBKnCSkzCT5wcF_R978EpYDQnwWKj_ytPzjm2Ox4RF3yURGihw9yu4Zxc6I5InoiAmB05pyuHHgv6ioM3l7cieBxxTNnMfWzn-mguBWYxCSdm5dnlUxW7IIwWlFl5R17Hb550_HbdmX354lXPF7pKuu3kHR19TVXaDC_JyRhLueYiTN0u-Qxu-2QHdcsldRqliNFxpDTc-jaANV2_WVjU--WqLZyU5ToyvcgCc8p3r8IVe62q2CIu_DjxFU7Scnd-SDoNWs_ZKPb4LznSJ7KTmeOhDjCQI9Reszk54nxBSWqfcD1bjJNdzgasuW9CcKGaacWZLNksFW_R6PW1ez6-AiN_EyJjb02hDpRSWoyAclKmI7Ve0RgEjjOfBHXsI8Nl2m3IwkFuwzgIl5Tp0Cg8wzNQUgIzGK6kWZ1t6zSv4Q0Ik1mfTq4Nwlw3B-r178gsibDQ0yx15pdzFHkoWuE3kWl5FtViN3xf5llwH1orQfttFfGagpdGUmuywt7wOIPdOVzYdqVaY5w8RzTIR3qtk10lJYD2qWpVMynZspr6XZUVbKVBHCOatpO9pkdQAy2JWGIawpfSRntEUKBLMkVDuA2xWKj34RY4qFx-_8YCNIxFQhpI8GQ2R8MXGCiwSlZqvl1QDO_WZS5dYfaH82WmMhPKj1WHFwwcOU9YjIbNZkfDaLhB_2DZ6h_3Bq3moHva9P223-s10Bsa9lvHzU6v2e12-z2_fToYbBvoXZv3j3v9VqvX7fT77Y7f7fitBiIhhcK-Nh-B-ltw-x_c21wC?type=png)](https://mermaid.live/edit#pako:eNqNlltP2zAUgP9KZGkSSAXSG708DKGyISYBFZdNW8uDSUxrNbU7O6GDpv99x5ckTpoi-tDEx9-5OeecZIMCHhI0RC8RXwdzLGLv4WLKPPiNIkpYfHBgroeHSmp2ZPI8E3g196boPInnsEsDHFPOvGsSz3kop8iA6ndPpIQtBU7svVfWeirgH78eNAjX_dAl57OIaM7cerdqYQnCws9EOhY8gGjcSEeChIrAkdz8xBENcUxc4XYnKdgEZmIumdCJ9IEvSAZdEkaEwlRuekPu5JR5neTubYKad3CVzH0SqAwmlcSsuAJ_xzRKBKnCSkzCT5wcF_R978EpYDQnwWKj_ytPzjm2Ox4RF3yURGihw9yu4Zxc6I5InoiAmB05pyuHHgv6ioM3l7cieBxxTNnMfWzn-mguBWYxCSdm5dnlUxW7IIwWlFl5R17Hb550_HbdmX354lXPF7pKuu3kHR19TVXaDC_JyRhLueYiTN0u-Qxu-2QHdcsldRqliNFxpDTc-jaANV2_WVjU--WqLZyU5ToyvcgCc8p3r8IVe62q2CIu_DjxFU7Scnd-SDoNWs_ZKPb4LznSJ7KTmeOhDjCQI9Reszk54nxBSWqfcD1bjJNdzgasuW9CcKGaacWZLNksFW_R6PW1ez6-AiN_EyJjb02hDpRSWoyAclKmI7Ve0RgEjjOfBHXsI8Nl2m3IwkFuwzgIl5Tp0Cg8wzNQUgIzGK6kWZ1t6zSv4Q0Ik1mfTq4Nwlw3B-r178gsibDQ0yx15pdzFHkoWuE3kWl5FtViN3xf5llwH1orQfttFfGagpdGUmuywt7wOIPdOVzYdqVaY5w8RzTIR3qtk10lJYD2qWpVMynZspr6XZUVbKVBHCOatpO9pkdQAy2JWGIawpfSRntEUKBLMkVDuA2xWKj34RY4qFx-_8YCNIxFQhpI8GQ2R8MXGCiwSlZqvl1QDO_WZS5dYfaH82WmMhPKj1WHFwwcOU9YjIbNZkfDaLhB_2DZ6h_3Bq3moHva9P223-s10Bsa9lvHzU6v2e12-z2_fToYbBvoXZv3j3v9VqvX7fT77Y7f7fitBiIhhcK-Nh-B-ltw-x_c21wC)
 
 ### Authentication Methods
 
@@ -223,92 +92,11 @@ The API follows standard RESTful CRUD operations for all resources. Below are th
 
 ### User CRUD Flow
 
-```mermaid
-flowchart TD
-    Client((Client))
-  
-    %% CREATE
-    Client -->|POST /api/auth/register/| RegisterAPI[RegisterView]
-    RegisterAPI -->|validate| UserValidation{Valid?}
-    UserValidation -->|Yes| CreateUser[Create CustomUser]
-    CreateUser --> DatabaseCreate[(Database)]
-    CreateUser --> ReturnUser[Return User Data]
-    ReturnUser --> Client
-    UserValidation -->|No| ReturnError[Return Validation Error]
-    ReturnError --> Client
-  
-    %% READ
-    Client -->|GET /api/auth/me/| CurrentUserAPI[CurrentUserView]
-    CurrentUserAPI -->|Authentication| AuthCheck{Authenticated?}
-    AuthCheck -->|Yes| FetchUser[Fetch Current User]
-    FetchUser --> DatabaseFetch[(Database)]
-    FetchUser --> SerializeUser[Serialize User]
-    SerializeUser --> Client
-    AuthCheck -->|No| Auth401[Return 401 Unauthorized]
-    Auth401 --> Client
-  
-    %% UPDATE
-    Client -->|PATCH /api/auth/:user_id/| UpdateAPI[UserProfileView]
-    UpdateAPI -->|Authentication| UpdateAuthCheck{Authenticated?}
-    UpdateAuthCheck -->|Yes| PermissionCheck{Owner or Admin?}
-    PermissionCheck -->|Yes| ValidateUpdate{Valid Data?}
-    ValidateUpdate -->|Yes| UpdateUser[Update User]
-    UpdateUser --> DatabaseUpdate[(Database)]
-    UpdateUser --> ReturnUpdated[Return Updated User]
-    ReturnUpdated --> Client
-  
-    %% DELETE
-    Client -->|DELETE /api/auth/:user_id/delete/| DeleteAPI[UserDeleteView]
-    DeleteAPI -->|Authentication| DeleteAuthCheck{Authenticated?}
-    DeleteAuthCheck -->|Yes| AdminCheck{Is Admin?}
-    AdminCheck -->|Yes| DeleteUser[Delete User]
-    DeleteUser --> DatabaseDelete[(Database)]
-    DeleteUser --> Return204[Return 204 No Content]
-    Return204 --> Client
-```
+[![](https://mermaid.ink/img/pako:eNp9lW1v2jAQx7-KZakSlWhJeArkxSaUsK3S2qIWJm1QTR5xwSqJK8dZ1wLffWc7Dw7Q9k3v7v-_s_HPVrZ4ySOKffy44S_LNRESTcNFguAv2DCayEbD_D8_V1WjnJ2h4G48mo5tI7q4-LSb3N5PUYs8sxbJ5Lol6IqlkorWDt3l4WhyNS_iH4y-PJgZlqwH_SUbFhFJd2iWgtFkjCdbHX7em666pht_0nSHAkGhV6lzE6IgSyWPVSVfsLKoNhQSSf6QlJryvFHk56ftd1RmItELmFBvRU8pf1Dh0A3mjN7d9Q3f5R1jIXg51HLpem22rhwML_kAnvCIztexDSemgCXIhABZbUmRsVILTt2kR41gApTYUu9uh1QerOnyaWsptARVyhWjL1Qu1_oEdVQsgixGpaWGSFePCdXN91QwOLw3cwnKzJ5esxxBqu9Y8VGVruMWbCBEs0SdJBcwJHqo-pT0DpfZJDz5bkbT4JvFxs9gT79ZBIRmz-odKDhqnxPBH9mGWnBK_SSXXP2YzoGpYjShImZpCpNM9-1LAkcFt24UxSwp2g9cVXt-famZb56uxlh01g1Vo8k1ulyyuFVi7VqY8vG9OLDn71IXo_LxmtRepeZ7j2Y4_j4-QdOUT-GM6IZK9e5CHRRUTWZBLeWTUHP1Y6gHpupwNTvTeJXWSVZSZTdzNAsT2qdUiTUWpnzM4sBuzrjtdAsOEKIbjgKeSPg9NRJKsingJo7h3hEWwcdrq6lgOIWYLrAPYUTE0wIvkj34AAG_f02W2Jcio00seLZaY_-RbFLIMo04ZGQlSFxWn0nyi_O4aFkJtU7eTpOIioBnicS-6_a1Gftb_A_S9uDSG7bdYa_vOk7H8bwmfsX-oH3pdj231-sNPKfTHw73TfymxzuX3qDd9nrdoTd0O52-A-NoxCQX1-a7rD_P-_8aCI45?type=png)](https://mermaid.live/edit#pako:eNp9lW1v2jAQx7-KZakSlWhJeArkxSaUsK3S2qIWJm1QTR5xwSqJK8dZ1wLffWc7Dw7Q9k3v7v-_s_HPVrZ4ySOKffy44S_LNRESTcNFguAv2DCayEbD_D8_V1WjnJ2h4G48mo5tI7q4-LSb3N5PUYs8sxbJ5Lol6IqlkorWDt3l4WhyNS_iH4y-PJgZlqwH_SUbFhFJd2iWgtFkjCdbHX7em666pht_0nSHAkGhV6lzE6IgSyWPVSVfsLKoNhQSSf6QlJryvFHk56ftd1RmItELmFBvRU8pf1Dh0A3mjN7d9Q3f5R1jIXg51HLpem22rhwML_kAnvCIztexDSemgCXIhABZbUmRsVILTt2kR41gApTYUu9uh1QerOnyaWsptARVyhWjL1Qu1_oEdVQsgixGpaWGSFePCdXN91QwOLw3cwnKzJ5esxxBqu9Y8VGVruMWbCBEs0SdJBcwJHqo-pT0DpfZJDz5bkbT4JvFxs9gT79ZBIRmz-odKDhqnxPBH9mGWnBK_SSXXP2YzoGpYjShImZpCpNM9-1LAkcFt24UxSwp2g9cVXt-famZb56uxlh01g1Vo8k1ulyyuFVi7VqY8vG9OLDn71IXo_LxmtRepeZ7j2Y4_j4-QdOUT-GM6IZK9e5CHRRUTWZBLeWTUHP1Y6gHpupwNTvTeJXWSVZSZTdzNAsT2qdUiTUWpnzM4sBuzrjtdAsOEKIbjgKeSPg9NRJKsingJo7h3hEWwcdrq6lgOIWYLrAPYUTE0wIvkj34AAG_f02W2Jcio00seLZaY_-RbFLIMo04ZGQlSFxWn0nyi_O4aFkJtU7eTpOIioBnicS-6_a1Gftb_A_S9uDSG7bdYa_vOk7H8bwmfsX-oH3pdj231-sNPKfTHw73TfymxzuX3qDd9nrdoTd0O52-A-NoxCQX1-a7rD_P-_8aCI45)
 
 ### Post CRUD Flow
 
-```mermaid
-flowchart TD
-    Client((Client))
-  
-    %% CREATE
-    Client -->|POST /api/posts/posts/| CreatePostAPI[PostListCreate]
-    CreatePostAPI -->|Authentication| PostAuthCheck{Authenticated?}
-    PostAuthCheck -->|Yes| ValidatePost{Valid Data?}
-    ValidatePost -->|Yes| CreatePost[Create Post]
-    CreatePost --> DatabaseCreatePost[(Database)]
-    CreatePost --> ClearCache[Clear User Caches]
-    ClearCache --> ReturnPost[Return Post Data]
-    ReturnPost --> Client
-  
-    %% READ
-    Client -->|GET /api/posts/posts/| ListPostsAPI[PostListCreate]
-    ListPostsAPI -->|Authentication| ListPostsAuth{Authenticated?}
-    ListPostsAuth -->|Yes| FetchPosts[Fetch Posts]
-    FetchPosts --> DatabaseFetchPosts[(Database)]
-    FetchPosts --> PaginatePosts[Paginate Results]
-    PaginatePosts --> SerializePosts[Serialize Posts]
-    SerializePosts --> Client
-  
-    %% UPDATE
-    Client -->|PATCH /api/posts/posts/:post_id/update/| UpdatePostAPI[PostUpdateView]
-    UpdatePostAPI -->|Authentication| UpdatePostAuth{Authenticated?}
-    UpdatePostAuth -->|Yes| OwnerCheck{Is Owner?}
-    OwnerCheck -->|Yes| ValidateUpdatePost{Valid Data?}
-    ValidateUpdatePost -->|Yes| UpdatePost[Update Post]
-    UpdatePost --> DatabaseUpdatePost[(Database)]
-    UpdatePost --> ReturnUpdatedPost[Return Updated Post]
-  
-    %% DELETE
-    Client -->|DELETE /api/posts/posts/:post_id/delete/| DeletePostAPI[PostDeleteView]
-    DeletePostAPI -->|Authentication| DeletePostAuth{Authenticated?}
-    DeletePostAuth -->|Yes| AdminRoleCheck{Is Admin?}
-    AdminRoleCheck -->|Yes| DeletePost[Delete Post]
-    DeletePost --> DatabaseDeletePost[(Database)]
-    DeletePost --> Return204Post[Return 204 No Content]
-```
+[![](https://mermaid.ink/img/pako:eNp9Vd1u2jAYfZXIUqVWoiWBQiAXm1DCtkrdigqttIVp8hIXrIYYOY5YC7z7HDuJbRLKBfl-zjl2fPwpexCRGAEPvCRkF60hZdYiWKYW__kJRim7vJTPq6uiKjsXF5b_OJ0spjrQur7-dJg9zBdWF25xd0sylpX_B8unCDI049lkdhcWz3ucMVn9XaroECE2ydmaC-MIMkzSgyV6vOavUfS617oo_nyUIgZEiPxE2cF6hgmOS_W9SKwAMlix9LYiqQ2FMhTqjd0WBKH2F2ZI41xWtat2ip8gSH0YrVEoQuspQ9QShaxi1BDBeEQsp6kQl6HYkFi7JChEuURhjOEbty1ouPZ12mpaYVGhlZ31TEe0WqYAvNFumQFRp_8FsWgt6qEIxbtWB6OaxulrnMbpn1BmcIXT0o4srDJ-gFme1MsYIEGbI4r5ZXkveXVq7M4EnXPiaRa0TtBk4X9ruuEVjz847ubb4qZyd5628clIycozRrtyIwak1R8NcdYgE6McetiliMpZvMtkVlFUqzmDSu6DSVQgJaBqoQz1eTQJ9Y3QOI0bcUKRsyOLsT5kZUmtVlsYTO-nLRbK8gcexihBwsNABLqHsqJ5aEBaPdQQZz00MepMJ_EGp48kQbWPolLRzLaiKblQhroVqmlYoXEaVpxQ5MH37FvdBp5aP4jlk5Tx1-NE0AEbRDcQx_zztRfGAP7qG7QEHg9jSF-XYJkeOQ7mjMzf0gh4jOaoAyjJV2vgvcAk45kcqQDDFYWburqF6S9CNhVlRYt1SjpKY36_SZ4y4DnOSICBtwf_eNob3bjjnjMeDB3b7tuu2wFvwBv1bpxb1xkMBiPX7g_H42MHvAt5-8Yd9Xru4Hbsjp1-f2gPOwDFmBH6XX6ZxQf6-B9d0Jno?type=png)](https://mermaid.live/edit#pako:eNp9Vd1u2jAYfZXIUqVWoiWBQiAXm1DCtkrdigqttIVp8hIXrIYYOY5YC7z7HDuJbRLKBfl-zjl2fPwpexCRGAEPvCRkF60hZdYiWKYW__kJRim7vJTPq6uiKjsXF5b_OJ0spjrQur7-dJg9zBdWF25xd0sylpX_B8unCDI049lkdhcWz3ucMVn9XaroECE2ydmaC-MIMkzSgyV6vOavUfS617oo_nyUIgZEiPxE2cF6hgmOS_W9SKwAMlix9LYiqQ2FMhTqjd0WBKH2F2ZI41xWtat2ip8gSH0YrVEoQuspQ9QShaxi1BDBeEQsp6kQl6HYkFi7JChEuURhjOEbty1ouPZ12mpaYVGhlZ31TEe0WqYAvNFumQFRp_8FsWgt6qEIxbtWB6OaxulrnMbpn1BmcIXT0o4srDJ-gFme1MsYIEGbI4r5ZXkveXVq7M4EnXPiaRa0TtBk4X9ruuEVjz847ubb4qZyd5628clIycozRrtyIwak1R8NcdYgE6McetiliMpZvMtkVlFUqzmDSu6DSVQgJaBqoQz1eTQJ9Y3QOI0bcUKRsyOLsT5kZUmtVlsYTO-nLRbK8gcexihBwsNABLqHsqJ5aEBaPdQQZz00MepMJ_EGp48kQbWPolLRzLaiKblQhroVqmlYoXEaVpxQ5MH37FvdBp5aP4jlk5Tx1-NE0AEbRDcQx_zztRfGAP7qG7QEHg9jSF-XYJkeOQ7mjMzf0gh4jOaoAyjJV2vgvcAk45kcqQDDFYWburqF6S9CNhVlRYt1SjpKY36_SZ4y4DnOSICBtwf_eNob3bjjnjMeDB3b7tuu2wFvwBv1bpxb1xkMBiPX7g_H42MHvAt5-8Yd9Xru4Hbsjp1-f2gPOwDFmBH6XX6ZxQf6-B9d0Jno)
 
 ### Comment, Like, and Follow Operations
 
@@ -322,61 +110,11 @@ The system implements optimized data flows for various operations:
 
 ### Feed Generation Data Flow
 
-```mermaid
-graph TD
-    Client((Client))
-    Database[(Database)]
-    Cache[(Redis Cache)]
-  
-    %% Feed Flow with Caching
-    Client -->|GET /api/posts/feed/| FeedView[Feed View]
-    FeedView -->|Build Cache Key| FeedView
-    FeedView -->|Check Cache| Cache
-  
-    Cache -->|Cache Miss| QueryDB[Query Database]
-    QueryDB -->|Get Posts| Database
-    QueryDB -->|Privacy Filter| QueryDB
-    QueryDB -->|Annotate Counts| QueryDB
-    QueryDB -->|Paginate| QueryDB
-    QueryDB -->|Store Results| Cache
-    QueryDB -->|Return Feed Data| FeedView
-  
-    Cache -->|Cache Hit| ReturnCached[Return Cached Data]
-    ReturnCached -->|Return Feed Data| FeedView
-  
-    FeedView -->|Format Response| FeedView
-    FeedView -->|Add Pagination Links| FeedView
-    FeedView -->|Return Feed| Client
-```
+[![](https://mermaid.ink/img/pako:eNqNVFtv2jAU_iuWpUogUUhCISQPk1oYm7RVYrTaw2APXnxKLIId2c5YRvjvc-yQglqh5cXn8n3nGvuAE0EBx3gjSZ6i59maI_NNMwZcdzru7HaddUY0-UUUrDonqfuzwZMkNeYlUKac4jzOe3OD5gAUzTOxR3umUwthfHOeDN3efqg-fXxGA5KzQS6UVoMXwxpUlvydwX5lo9RSk_bksNyHgmXUJUdfoHylvYOdppBsHbZyx2u1LoJFWemRKVWhbwXIcvawsmc7iaaOxulaAI0WdfVVi3oLWkj2myQlmrNMg2yjvwXecy400YCmouBaXUEuyIZxg7wCedJCAlqCKrI6VNv3JWoJupDcbazu4HKQ78_oM9MVckRroKsmitNsnGZW56j_znexvLmQO6LrPnLBFVxd9D2lqJkMExx9ZXyrrhLOqqmaP3PNcQ_vwCRl1NyUgy0L6xR2sMaxESmR2zVe86PBkUKLp5InONaygB6WotikOH4hmTJakVOzohkj5rrtWmtO-A8hdifKRtZ5GjpwCtIuH8d-4Fkwjg_4T61O-mEU-NFo7Hve0AvDHi5xPAn6_l3oj0ajSegNx1F07OG_NrzXDydBEI7uojDyh8OxN-5hc2PNX_HoHgH7Fhz_ASTiUMU?type=png)](https://mermaid.live/edit#pako:eNqNVFtv2jAU_iuWpUogUUhCISQPk1oYm7RVYrTaw2APXnxKLIId2c5YRvjvc-yQglqh5cXn8n3nGvuAE0EBx3gjSZ6i59maI_NNMwZcdzru7HaddUY0-UUUrDonqfuzwZMkNeYlUKac4jzOe3OD5gAUzTOxR3umUwthfHOeDN3efqg-fXxGA5KzQS6UVoMXwxpUlvydwX5lo9RSk_bksNyHgmXUJUdfoHylvYOdppBsHbZyx2u1LoJFWemRKVWhbwXIcvawsmc7iaaOxulaAI0WdfVVi3oLWkj2myQlmrNMg2yjvwXecy400YCmouBaXUEuyIZxg7wCedJCAlqCKrI6VNv3JWoJupDcbazu4HKQ78_oM9MVckRroKsmitNsnGZW56j_znexvLmQO6LrPnLBFVxd9D2lqJkMExx9ZXyrrhLOqqmaP3PNcQ_vwCRl1NyUgy0L6xR2sMaxESmR2zVe86PBkUKLp5InONaygB6WotikOH4hmTJakVOzohkj5rrtWmtO-A8hdifKRtZ5GjpwCtIuH8d-4Fkwjg_4T61O-mEU-NFo7Hve0AvDHi5xPAn6_l3oj0ajSegNx1F07OG_NrzXDydBEI7uojDyh8OxN-5hc2PNX_HoHgH7Fhz_ASTiUMU)
 
 ### Social Interaction Data Flow
 
-```mermaid
-graph TD
-    Client((Client))
-    Database[(Database)]
-    Cache[(Redis Cache)]
-  
-    %% Like Flow
-    Client -->|POST /api/posts/posts/:id/like/| LikeView
-    LikeView -->|Check Exists| Database
-    LikeView -->|If Not Exists| CreateLike[Create Like]
-    CreateLike -->|Save| Database
-    CreateLike -->|Return 201| Client
-    LikeView -->|If Exists| DeleteLike[Delete Like]
-    DeleteLike -->|Remove| Database
-    DeleteLike -->|Return 204| Client
-  
-    %% Follow Flow
-    Client -->|POST /api/posts/follow/:user_id/| FollowView
-    FollowView -->|Check Exists| Database
-    FollowView -->|If Not Exists| CreateFollow[Create Follow]
-    CreateFollow -->|Save| Database
-    CreateFollow -->|Return 201| Client
-    FollowView -->|If Exists| DeleteFollow[Delete Follow]
-    DeleteFollow -->|Remove| Database
-    DeleteFollow -->|Return 204| Client
-```
+![1744226071172](image/README/1744226071172.png)
 
 ---
 
@@ -384,48 +122,9 @@ graph TD
 
 The API implements a comprehensive error handling strategy:
 
-```mermaid
-flowchart TD
-    Client([Client Request]) --> Middleware[Middleware Stack]
-  
-    subgraph "Request Validation"
-        Middleware --> AuthCheck{Authentication<br>Check}
-        AuthCheck -->|Valid Auth| PermissionCheck{Permission<br>Check}
-        AuthCheck -->|Invalid Auth| Auth401[Return 401 Unauthorized]
-      
-        PermissionCheck -->|Has Permission| InputValidation{Input<br>Validation}
-        PermissionCheck -->|No Permission| Permission403[Return 403 Forbidden]
-      
-        InputValidation -->|Valid Data| ProcessRequest[Process Request]
-        InputValidation -->|Invalid Data| Validation400[Return 400 Bad Request]
-    end
-  
-    subgraph "Exception Handling"
-        ProcessRequest --> TryBlock{Try Block}
-        TryBlock -->|Success| SuccessResponse[Return Success Response]
-      
-        TryBlock -->|Exception| ExceptionHandler{Exception<br>Type}
-      
-        ExceptionHandler -->|ValidationError| ValidationException[Return 400 Bad Request<br>with Validation Errors]
-        ExceptionHandler -->|PermissionDenied| PermissionException[Return 403 Forbidden]
-        ExceptionHandler -->|ObjectDoesNotExist| NotFoundException[Return 404 Not Found]
-        ExceptionHandler -->|Other Exceptions| ServerException[Return 500 Internal Server Error]
-    end
-  
-    subgraph "Middleware Error Handling"
-        Middleware -->|CSRF Error| CSRFFailure[Return 403 CSRF Failure]
-        Middleware -->|Rate Limit Exceeded| RateLimitExceeded[Return 429 Too Many Requests]
-        Middleware -->|Role Permission Error| RoleMiddlewareError[Return 403 Role Permission Error]
-    end
-  
-    subgraph "Custom Error Responses"
-        ValidationException --> FormatValidationError[Format Error Response<br>with Field Details]
-        ServerException --> LogException[Log Exception<br>to api_performance.log]
-      
-        NotFoundException --> CustomNotFoundMessage[Return Custom<br>404 Message]
-        PermissionException --> CustomPermissionMessage[Return Custom<br>403 Message]
-    end
-```
+![1744226097605](image/README/1744226097605.png)
+
+
 
 ### Error Handling Strategy
 
@@ -447,38 +146,9 @@ flowchart TD
 
 The API implements a sophisticated access control decision flow:
 
-```mermaid
-flowchart TD
-    %% Main entry point
-    Request([API Request]) --> AuthCheck{Is Authenticated?}
-  
-    %% Authentication check
-    AuthCheck -->|No| Auth401[Return 401 Unauthorized]
-    AuthCheck -->|Yes| EndpointType{Endpoint Type?}
-  
-    %% Different endpoint types
-    EndpointType -->|Admin| AdminCheck{Is Admin?}
-    EndpointType -->|Regular| RoleCheck{Role Check}
-    EndpointType -->|Resource Owner| OwnerCheck{Is Owner?}
-    EndpointType -->|Content Privacy| PrivacyCheck{Post Privacy?}
-  
-    %% Admin checks
-    AdminCheck -->|Yes| AdminGranted[Access Granted]
-    AdminCheck -->|No| Admin403[Return 403 Forbidden]
-  
-    %% Ownership checks
-    OwnerCheck -->|Yes| OwnerGranted[Access Granted]
-    OwnerCheck -->|No, but Read Request| ReadCheck{Is Read-Only Request?}
-    OwnerCheck -->|No, and Write Request| Owner403[Return 403 Forbidden]
-  
-    %% Privacy checks
-    PrivacyCheck -->|Public Post| PublicGranted[Access Granted]
-    PrivacyCheck -->|Private Post| PrivateOwnerCheck{Is Post Owner?}
-  
-    PrivateOwnerCheck -->|Yes| PrivateOwnerGranted[Access Granted]
-    PrivateOwnerCheck -->|No, but Admin/Mod| RoleForPrivate{Is Admin/Moderator?}
-    PrivateOwnerCheck -->|No| Private403[Return 403 Forbidden]
-```
+[![](https://mermaid.ink/img/pako:eNqNVF1v2jAU_SuWpUqbBCwhQCAPm1DZpj7QItZp2oAHExuwCjZznHaU8N937XxCgY0XfO695_h-xXscSspwgBdr-RKuiNLocTAVCH43N2hIuEBMaLVDW8mFTh1j9jtmkX436Y_ucjB7j-r1j6gf69XtioVP-7vIAiDzkGhGPx0MuVCu-LgUKDSc1FlIGMHkXibW0nLcyZjpWAkER_RdEDBKxV8ZnZ3j_WRRgj4LatN-3G3ZPgfIoJNsBnyxYArygWKzKA1RURpQlbHifbrhAvIyf2W1BqW6ZyhjtozXRCVoLNcs5ZgTssfLpEjGKmTo4UUw4Nq_4kKLLl54K4U2BY0UfybhLskPKX0ko8J1OhlTRzqQrP6yzrK11vZVEbiETvphyKIIZXB2lmUHaUwtxysn6aEvUs05pUzMjrKwxUUrvj3KpGxAmYm1Xc3khHUva2gea9hcQvP1TSwqWmtA_UGsd7k_b_MZKSIo-qG4ZqWWjfq_OrMZHFVZnZS9ZhTP1zxEZmgwRwuuFvxWwBggw0whRcfbZDeislIVpWpo2feq69_ZvNHIp2B34sNQ0vTTgDZl8cU3ZZxMES2LZb-kWCR1pfe4hjdMbQin8OjtbaUYnqINm-IAjpSopymeigPEwRMjv-1EiAOtYlbDSsbLFQ4WZB0BircUbhpwslRkU1i3RPyScpNTlsrck9HhbYF8ZSw0DlyvaYNxsMd_ADa7Db_XdHvtjus4nuP7NbzDQbfZcFu-2263u77jdXq9Qw2_Wnmn4XebTb_d6vk91_M6TqeGGeXQpGH6nttn_fAXUyL5iA?type=png)](https://mermaid.live/edit#pako:eNqNVF1v2jAU_SuWpUqbBCwhQCAPm1DZpj7QItZp2oAHExuwCjZznHaU8N937XxCgY0XfO695_h-xXscSspwgBdr-RKuiNLocTAVCH43N2hIuEBMaLVDW8mFTh1j9jtmkX436Y_ucjB7j-r1j6gf69XtioVP-7vIAiDzkGhGPx0MuVCu-LgUKDSc1FlIGMHkXibW0nLcyZjpWAkER_RdEDBKxV8ZnZ3j_WRRgj4LatN-3G3ZPgfIoJNsBnyxYArygWKzKA1RURpQlbHifbrhAvIyf2W1BqW6ZyhjtozXRCVoLNcs5ZgTssfLpEjGKmTo4UUw4Nq_4kKLLl54K4U2BY0UfybhLskPKX0ko8J1OhlTRzqQrP6yzrK11vZVEbiETvphyKIIZXB2lmUHaUwtxysn6aEvUs05pUzMjrKwxUUrvj3KpGxAmYm1Xc3khHUva2gea9hcQvP1TSwqWmtA_UGsd7k_b_MZKSIo-qG4ZqWWjfq_OrMZHFVZnZS9ZhTP1zxEZmgwRwuuFvxWwBggw0whRcfbZDeislIVpWpo2feq69_ZvNHIp2B34sNQ0vTTgDZl8cU3ZZxMES2LZb-kWCR1pfe4hjdMbQin8OjtbaUYnqINm-IAjpSopymeigPEwRMjv-1EiAOtYlbDSsbLFQ4WZB0BircUbhpwslRkU1i3RPyScpNTlsrck9HhbYF8ZSw0DlyvaYNxsMd_ADa7Db_XdHvtjus4nuP7NbzDQbfZcFu-2263u77jdXq9Qw2_Wnmn4XebTb_d6vk91_M6TqeGGeXQpGH6nttn_fAXUyL5iA)
+
+
 
 ### Access Control Components
 
