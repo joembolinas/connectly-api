@@ -14,12 +14,12 @@ from .views import api_root # Import the api_root view
 # Configure Swagger documentation
 schema_view = get_schema_view(
    openapi.Info(
-      title="Connectly API",
+      title="Connectly_Project Group 3",
       default_version='v1',
-      description="API documentation for Connectly social media platform",
+      description="Terminal Assessment for Connectly social media platform",
       terms_of_service="https://www.example.com/policies/terms/",
       contact=openapi.Contact(email="contact@example.com"),
-      license=openapi.License(name="BSD License"),
+      license=openapi.License(name="MMDC"),
    ),
    public=True,
    permission_classes=[permissions.AllowAny],
